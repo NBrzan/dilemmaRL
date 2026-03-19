@@ -24,6 +24,39 @@ Platform: MacOS, Linux, Windows
 
 by Baihan Lin, April 2020
 
+## Installation instructions
+
+Clone the repo:
+
+```shell
+git clone https://github.com/NBrzan/dilemmaRL.git
+cd dilemmaRL
+```
+
+Set up a python enviroment using conda (Optional):
+
+```shell
+conda create -n dilemmaRL python=3.14
+conda activate dilemmaRL
+```
+Install requirements
+
+```bash
+pip install -r requirements
+```
+
+Set up folder for graphs
+
+```bash
+mkdir -p ./figures/ipd1_m5
+```
+
+Run the app
+
+```bash
+python main_ipd.py
+```
+
 ## Citation
 
 If you find this work helpful, please try the models out and cite our works. Thanks!
@@ -51,6 +84,7 @@ If you find this work helpful, please try the models out and cite our works. Tha
 
 ## Requirements
 
+* python
 * numpy and scikit-learn
 
 ## Mental variants
