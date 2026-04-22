@@ -30,7 +30,7 @@ HC_algs = ['Coop','Dfct','Tit4Tat']
 all_algs = ['UCB','TS','eGreedy','EXP3','HBTS','LinUCB','CTS','EXP4','SCTS','QL','DQL','SARSA','SQL','Coop','Dfct','Tit4Tat']
 agent_algs = ['UCB','TS','eGreedy','EXP3','HBTS','LinUCB','CTS','EXP4','SCTS','QL','DQL','SARSA','SQL']
 
-mMAB_algs = ['HBTS','bAD','bADD','bAD``HD','bbvFTD','bCP','bM','bPD']
+mMAB_algs = ['HBTS','bAD','bADD','bADHD','bbvFTD','bCP','bM','bPD']
 mCB_algs = ['SCTS','cAD','cADD','cADHD','cbvFTD','cCP','cM','cPD']
 mRL_algs = ['SQL','AD','ADD','ADHD','bvFTD','CP','M','PD']
 

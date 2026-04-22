@@ -507,6 +507,7 @@ class MDP():
 
         maxq = None
         isQ1forDQL = False
+        nxt_a = None
         
         p1,p2,n1,n2 = self.getBias(alg)
 
@@ -573,6 +574,9 @@ class MDP():
 
         if alg in ['Human']:
             nxt_a = self.code2action(self.trajs[player,self.T-t-1])
+
+        if nxt_a is None:
+            raise ValueError(f"Unknown algorithm: {alg}")
 
         return nxt_a, maxq, isQ1forDQL
     
