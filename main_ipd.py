@@ -14,6 +14,7 @@ import pandas as pd
 SMALL_SIZE = 40
 MEDIUM_SIZE = 50
 BIGGER_SIZE = 60
+IPD_SCENARIO = 2 # 1 = iterative 
 
 plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
 plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
@@ -271,7 +272,6 @@ fd = 'bclone_m5'
 T = 9
 nTrials = 10
 nMemory = 5
-ipd_scenario = 1
 test_size = test_set.shape[0]
 tab_r = np.zeros((test_size,len(ALGS),T))
 tab_r_std = np.zeros((test_size,len(ALGS),T))
@@ -285,7 +285,7 @@ tab_pr = np.zeros((test_size,len(ALGS)))
 
 for i,alg1 in enumerate(ALGS):
     algs = [alg1,'Human']
-    _,reward_from_A,reward_from_B,reward_from_C,reward_from_D = load_IPD(ipd_scenario,prefix=fd)
+    _,reward_from_A,reward_from_B,reward_from_C,reward_from_D = load_IPD(IPD_SCENARIO,prefix=fd)
     reward_functions = (reward_from_A,reward_from_B,reward_from_C,reward_from_D)
     ipd_case = IPD(algs,reward_functions,nTrials,T,nMemory=nMemory)
     for j in np.arange(train_set.shape[0]):
@@ -294,7 +294,7 @@ for i,alg1 in enumerate(ALGS):
         ipd_case.loadTraj(train_data,True)
         rep = ipd_case.run()
     ipd_case.pauseLearn()
-    path = './models/'+fd+'/trained_IPD_'+str(ipd_scenario)+'_m_'+str(nMemory)+'_p_'+ '_'.join(algs)+'.pkl'
+    path = './models/'+fd+'/trained_IPD_'+str(IPD_SCENARIO)+'_m_'+str(nMemory)+'_p_'+ '_'.join(algs)+'.pkl'
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, 'wb') as handle:
         pickle.dump(rep, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -313,7 +313,7 @@ for i,alg1 in enumerate(ALGS):
         rep['T'] = T
         rep['min_r'] = np.min([np.sum(reward_from_A(0)),np.sum(reward_from_B(0)),np.sum(reward_from_C(0)),np.sum(reward_from_D(0))])
         rep['max_r'] = np.max([np.sum(reward_from_A(0)),np.sum(reward_from_B(0)),np.sum(reward_from_C(0)),np.sum(reward_from_D(0))])
-        fig_p = './figures/'+fd+'/test_'+str(k)+'_p_IPD_'+str(ipd_scenario)+'_m_'+str(nMemory)+'_'+ '_'.join(algs)
+        fig_p = './figures/'+fd+'/test_'+str(k)+'_p_IPD_'+str(IPD_SCENARIO)+'_m_'+str(nMemory)+'_'+ '_'.join(algs)
         plot_p(rep,fig_p)
         rs,r,p,r_std,p_std = [],[],[],[],[]
         for l in np.arange(len(algs)):
@@ -585,7 +585,6 @@ fd = 'bclone_m1'
 T = 9
 nTrials = 10
 nMemory = 1
-ipd_scenario = 1
 test_size = test_set.shape[0]
 tab_r = np.zeros((test_size,len(ALGS),T))
 tab_r_std = np.zeros((test_size,len(ALGS),T))
@@ -599,7 +598,7 @@ tab_pr = np.zeros((test_size,len(ALGS)))
 
 for i,alg1 in enumerate(ALGS):
     algs = [alg1,'Human']
-    _,reward_from_A,reward_from_B,reward_from_C,reward_from_D = load_IPD(ipd_scenario,prefix=fd)
+    _,reward_from_A,reward_from_B,reward_from_C,reward_from_D = load_IPD(IPD_SCENARIO,prefix=fd)
     reward_functions = (reward_from_A,reward_from_B,reward_from_C,reward_from_D)
     ipd_case = IPD(algs,reward_functions,nTrials,T,nMemory=nMemory)
     for j in np.arange(train_set.shape[0]):
@@ -608,7 +607,7 @@ for i,alg1 in enumerate(ALGS):
         ipd_case.loadTraj(train_data,True)
         rep = ipd_case.run()
     ipd_case.pauseLearn()
-    path = './models/'+fd+'/trained_IPD_'+str(ipd_scenario)+'_m_'+str(nMemory)+'_p_'+ '_'.join(algs)+'.pkl'
+    path = './models/'+fd+'/trained_IPD_'+str(IPD_SCENARIO)+'_m_'+str(nMemory)+'_p_'+ '_'.join(algs)+'.pkl'
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, 'wb') as handle:
         pickle.dump(rep, handle, protocol=pickle.HIGHEST_PROTOCOL)
@@ -627,7 +626,7 @@ for i,alg1 in enumerate(ALGS):
         rep['T'] = T
         rep['min_r'] = np.min([np.sum(reward_from_A(0)),np.sum(reward_from_B(0)),np.sum(reward_from_C(0)),np.sum(reward_from_D(0))])
         rep['max_r'] = np.max([np.sum(reward_from_A(0)),np.sum(reward_from_B(0)),np.sum(reward_from_C(0)),np.sum(reward_from_D(0))])
-        fig_p = './figures/'+fd+'/test_'+str(k)+'_p_IPD_'+str(ipd_scenario)+'_m_'+str(nMemory)+'_'+ '_'.join(algs)
+        fig_p = './figures/'+fd+'/test_'+str(k)+'_p_IPD_'+str(IPD_SCENARIO)+'_m_'+str(nMemory)+'_'+ '_'.join(algs)
         plot_p(rep,fig_p)
         rs,r,p,r_std,p_std = [],[],[],[],[]
         for l in np.arange(len(algs)):
