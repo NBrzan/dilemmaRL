@@ -3,6 +3,7 @@
 # from tqdm import tqdm
 
 from utils import *
+import os
 import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 from scipy.stats.stats import pearsonr   
@@ -68,7 +69,9 @@ for i,alg1 in enumerate(ALGS):
         tab_rd_std[j,i,:] = rd_std[1]
 
 tab = {'r':tab_r,'rstd':tab_r_std,'p':tab_p,'pstd':tab_p_std,'s':tab_rs_sum,'sstd':tab_rs_std,'d':tab_rs_dff,'dstd':tab_rd_std}
-with open('./models/ipd1_m5.pkl', 'wb') as handle:
+path = './models/ipd1_m5.pkl'
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with open(path, 'wb') as handle:
     pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 # Case with 3 agents
@@ -122,7 +125,9 @@ for it,alg1 in enumerate(ALGS1):
             tab_rd_std[k,i,j,:] = rd_std[2]
 
 tab = {'r':tab_r,'rstd':tab_r_std,'p':tab_p,'pstd':tab_p_std,'s':tab_rs_sum,'sstd':tab_rs_std,'d':tab_rs_dff,'dstd':tab_rd_std}
-with open('./models/ipd1_m5_3ag.pkl', 'wb') as handle:
+path = './models/ipd1_m5_3ag.pkl'
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with open(path, 'wb') as handle:
     pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 # Mental MAB agents
@@ -160,7 +165,9 @@ for i,alg1 in enumerate(ALGS):
         tab_rd_std[j,i,:] = rd_std[1]
 
 tab = {'r':tab_r,'rstd':tab_r_std,'p':tab_p,'pstd':tab_p_std,'s':tab_rs_sum,'sstd':tab_rs_std,'d':tab_rs_dff,'dstd':tab_rd_std}
-with open('./models/ipd1_m5_mMAB.pkl', 'wb') as handle:
+path = './models/ipd1_m5_mMAB.pkl'
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with open(path, 'wb') as handle:
     pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 # Mental CB agents
@@ -198,7 +205,9 @@ for i,alg1 in enumerate(ALGS):
         tab_rd_std[j,i,:] = rd_std[1]
 
 tab = {'r':tab_r,'rstd':tab_r_std,'p':tab_p,'pstd':tab_p_std,'s':tab_rs_sum,'sstd':tab_rs_std,'d':tab_rs_dff,'dstd':tab_rd_std}
-with open('./models/ipd1_m5_mCB.pkl', 'wb') as handle:
+path = './models/ipd1_m5_mCB.pkl'
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with open(path, 'wb') as handle:
     pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 # Mental RL agents
@@ -236,7 +245,9 @@ for i,alg1 in enumerate(ALGS):
         tab_rd_std[j,i,:] = rd_std[1]
 
 tab = {'r':tab_r,'rstd':tab_r_std,'p':tab_p,'pstd':tab_p_std,'s':tab_rs_sum,'sstd':tab_rs_std,'d':tab_rs_dff,'dstd':tab_rd_std}
-with open('./models/ipd1_m5_mRL.pkl', 'wb') as handle:
+path = './models/ipd1_m5_mRL.pkl'
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with open(path, 'wb') as handle:
     pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 # Behavioral Cloning
@@ -250,7 +261,9 @@ split = 8000
 train_set = trajs[:split,:,:]
 test_set = trajs[split:,:,:]
 full_data = {'train':train_set,'test':test_set}
-with open('./data/processed_train_test.pkl', 'wb') as handle:
+path = './data/processed_train_test.pkl'
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with open(path, 'wb') as handle:
     pickle.dump(full_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 ALGS = agent_algs
@@ -281,7 +294,9 @@ for i,alg1 in enumerate(ALGS):
         ipd_case.loadTraj(train_data,True)
         rep = ipd_case.run()
     ipd_case.pauseLearn()
-    with open('./models/'+fd+'/trained_IPD_'+str(ipd_scenario)+'_m_'+str(nMemory)+'_p_'+ '_'.join(algs)+'.pkl', 'wb') as handle:
+    path = './models/'+fd+'/trained_IPD_'+str(ipd_scenario)+'_m_'+str(nMemory)+'_p_'+ '_'.join(algs)+'.pkl'
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'wb') as handle:
         pickle.dump(rep, handle, protocol=pickle.HIGHEST_PROTOCOL)
     for k in np.arange(test_size):
         print('testing: ',i,alg1,k)
@@ -326,7 +341,9 @@ for i,alg1 in enumerate(ALGS):
         # print("pearsonr:",pearsonr(p[0],p_cor)[0])
         
 tab = {'r':tab_r,'rstd':tab_r_std,'p':tab_p,'pstd':tab_p_std,'s':tab_rs_sum,'sstd':tab_rs_std,'d':tab_rs_dff,'dstd':tab_rd_std,'pr':tab_pr}
-with open('./models/bclone_m5.pkl', 'wb') as handle:
+path = './models/bclone_m5.pkl'
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with open(path, 'wb') as handle:
     pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
@@ -366,7 +383,9 @@ for i,alg1 in enumerate(ALGS):
         tab_rd_std[j,i,:] = rd_std[1]
 
 tab = {'r':tab_r,'rstd':tab_r_std,'p':tab_p,'pstd':tab_p_std,'s':tab_rs_sum,'sstd':tab_rs_std,'d':tab_rs_dff,'dstd':tab_rd_std}
-with open('./models/ipd1_m1.pkl', 'wb') as handle:
+path = './models/ipd1_m1.pkl'
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with open(path, 'wb') as handle:
     pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 # Case with 3 agents
@@ -420,7 +439,9 @@ for it,alg1 in enumerate(ALGS1):
             tab_rd_std[k,i,j,:] = rd_std[2]
 
 tab = {'r':tab_r,'rstd':tab_r_std,'p':tab_p,'pstd':tab_p_std,'s':tab_rs_sum,'sstd':tab_rs_std,'d':tab_rs_dff,'dstd':tab_rd_std}
-with open('./models/ipd1_m1_3ag.pkl', 'wb') as handle:
+path = './models/ipd1_m1_3ag.pkl'
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with open(path, 'wb') as handle:
     pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 # Mental MAB agents
@@ -458,7 +479,9 @@ for i,alg1 in enumerate(ALGS):
         tab_rd_std[j,i,:] = rd_std[1]
 
 tab = {'r':tab_r,'rstd':tab_r_std,'p':tab_p,'pstd':tab_p_std,'s':tab_rs_sum,'sstd':tab_rs_std,'d':tab_rs_dff,'dstd':tab_rd_std}
-with open('./models/ipd1_m1_mMAB.pkl', 'wb') as handle:
+path = './models/ipd1_m1_mMAB.pkl'
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with open(path, 'wb') as handle:
     pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 # Mental CB agents
@@ -496,7 +519,9 @@ for i,alg1 in enumerate(ALGS):
         tab_rd_std[j,i,:] = rd_std[1]
 
 tab = {'r':tab_r,'rstd':tab_r_std,'p':tab_p,'pstd':tab_p_std,'s':tab_rs_sum,'sstd':tab_rs_std,'d':tab_rs_dff,'dstd':tab_rd_std}
-with open('./models/ipd1_m1_mCB.pkl', 'wb') as handle:
+path = './models/ipd1_m1_mCB.pkl'
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with open(path, 'wb') as handle:
     pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 # Mental RL agents
@@ -534,7 +559,9 @@ for i,alg1 in enumerate(ALGS):
         tab_rd_std[j,i,:] = rd_std[1]
 
 tab = {'r':tab_r,'rstd':tab_r_std,'p':tab_p,'pstd':tab_p_std,'s':tab_rs_sum,'sstd':tab_rs_std,'d':tab_rs_dff,'dstd':tab_rd_std}
-with open('./models/ipd1_m1_mRL.pkl', 'wb') as handle:
+path = './models/ipd1_m1_mRL.pkl'
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with open(path, 'wb') as handle:
     pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 # Behavioral Cloning
@@ -548,7 +575,9 @@ split = 8000
 train_set = trajs[:split,:,:]
 test_set = trajs[split:,:,:]
 full_data = {'train':train_set,'test':test_set}
-with open('./data/processed_train_test.pkl', 'wb') as handle:
+path = './data/processed_train_test.pkl'
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with open(path, 'wb') as handle:
     pickle.dump(full_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 ALGS = agent_algs
@@ -579,7 +608,9 @@ for i,alg1 in enumerate(ALGS):
         ipd_case.loadTraj(train_data,True)
         rep = ipd_case.run()
     ipd_case.pauseLearn()
-    with open('./models/'+fd+'/trained_IPD_'+str(ipd_scenario)+'_m_'+str(nMemory)+'_p_'+ '_'.join(algs)+'.pkl', 'wb') as handle:
+    path = './models/'+fd+'/trained_IPD_'+str(ipd_scenario)+'_m_'+str(nMemory)+'_p_'+ '_'.join(algs)+'.pkl'
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'wb') as handle:
         pickle.dump(rep, handle, protocol=pickle.HIGHEST_PROTOCOL)
     for k in np.arange(test_size):
         print('testing: ',i,alg1,k)
@@ -624,7 +655,9 @@ for i,alg1 in enumerate(ALGS):
         # print("pearsonr:",pearsonr(p[0],p_cor)[0])
         
 tab = {'r':tab_r,'rstd':tab_r_std,'p':tab_p,'pstd':tab_p_std,'s':tab_rs_sum,'sstd':tab_rs_std,'d':tab_rs_dff,'dstd':tab_rd_std,'pr':tab_pr}
-with open('./models/bclone_m1.pkl', 'wb') as handle:
+path = './models/bclone_m1.pkl'
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with open(path, 'wb') as handle:
     pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
