@@ -1,1 +1,7 @@
 __pycache__
+figures/
+models/
+
+
+.venv
+venv
