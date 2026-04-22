@@ -42,7 +42,7 @@ conda activate dilemmaRL
 Install requirements
 
 ```bash
-pip install -r requirements
+pip install -r requirements.txt
 ```
 
 Set up folder for graphs
