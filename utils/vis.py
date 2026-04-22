@@ -1,5 +1,6 @@
 from utils import *
 from .helpers import load_IPD
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import math
@@ -38,7 +39,9 @@ def run_ipd(ipd_scenario,algs,nMemory=5,nTrials=100,T=50,prefix=""):
     r_dff = rs - r_sum/len(algs)
     rs_dff = np.mean(r_dff,1)
     rd_std = np.std(r_dff,1)/np.sqrt(nTrials)
-    with open('./models/'+prefix+'/IPD_'+str(ipd_scenario)+'_m_'+str(nMemory)+'_p_'+ '_'.join(algs)+'.pkl', 'wb') as handle:
+    model_path = './models/'+prefix+'/IPD_'+str(ipd_scenario)+'_m_'+str(nMemory)+'_p_'+ '_'.join(algs)+'.pkl'
+    os.makedirs(os.path.dirname(model_path), exist_ok=True)
+    with open(model_path, 'wb') as handle:
         pickle.dump(rep, handle, protocol=pickle.HIGHEST_PROTOCOL)
     return r,r_std,p,p_std,rs_sum,rs_std,rs_dff,rd_std,rep
 
@@ -82,6 +85,7 @@ def plot_r(rep,filename,cum=True,legend=True):
         ax1.title.set_text('reward feedback: '+' vs. '.join(name))
         ax1.set_ylim([0,1])
     ax1.set_xlim([0,T])
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
     fig.savefig(filename, bbox_inches='tight')
     plt.close(fig)
 #     ax1.legend(bbox_to_anchor=(1.04,0.5), loc="center left", borderaxespad=0)
@@ -116,6 +120,7 @@ def plot_p(rep,filename,legend=True):
     ax1.title.set_text('cooperation ratio: '+' vs. '.join(name))
     ax1.set_xlim([0,T])
     ax1.set_ylim([0,100])
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
     fig.savefig(filename, bbox_inches='tight')
     plt.close(fig)
 #     ax1.legend(bbox_to_anchor=(1.04,0.5), loc="center left", borderaxespad=0)
@@ -367,6 +372,7 @@ def plotAgents(reports,names,nTrials,reward_functions,labels,fig_name,is_flipped
     
         fig.tight_layout() 
         
+    os.makedirs(os.path.dirname(fig_name), exist_ok=True)
     fig.savefig(fig_name)
     
     return fig, scores,rewards,actions
