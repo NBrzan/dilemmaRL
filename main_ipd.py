@@ -112,6 +112,7 @@ def run_bclone_single_alg(alg1, train_set, test_set, ipd_scenario, fd, nTrials, 
 SMALL_SIZE = 40
 MEDIUM_SIZE = 50
 BIGGER_SIZE = 60
+IPD_SCENARIO = 2 # 1 = iterative 
 
 plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
 plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
@@ -150,7 +151,7 @@ tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
-results = run_ipd_parallel(1, alg_pairs, nMemory, fd)
+results = run_ipd_parallel(IPD_SCENARIO, alg_pairs, nMemory, fd)
 
 for idx, (alg1, alg2) in enumerate(alg_pairs):
     i = idx // len(ALGS)
@@ -201,7 +202,7 @@ tab_rd_std = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
 
 alg_triplets = [[alg1, alg2, alg3]
                 for alg1 in ALGS1 for alg2 in ALGS2 for alg3 in ALGS3]
-results = run_ipd_parallel(1, alg_triplets, nMemory, fd)
+results = run_ipd_parallel(IPD_SCENARIO, alg_triplets, nMemory, fd)
 
 for idx, (alg1, alg2, alg3) in enumerate(alg_triplets):
     it = idx // (len(ALGS2) * len(ALGS3))
@@ -257,7 +258,7 @@ tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
-results = run_ipd_parallel(1, alg_pairs, nMemory, fd)
+results = run_ipd_parallel(IPD_SCENARIO, alg_pairs, nMemory, fd)
 
 for idx, (alg1, alg2) in enumerate(alg_pairs):
     i = idx // len(ALGS)
@@ -301,7 +302,7 @@ tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
-results = run_ipd_parallel(1, alg_pairs, nMemory, fd)
+results = run_ipd_parallel(IPD_SCENARIO, alg_pairs, nMemory, fd)
 
 for idx, (alg1, alg2) in enumerate(alg_pairs):
     i = idx // len(ALGS)
@@ -345,7 +346,7 @@ tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
-results = run_ipd_parallel(1, alg_pairs, nMemory, fd)
+results = run_ipd_parallel(IPD_SCENARIO, alg_pairs, nMemory, fd)
 
 for idx, (alg1, alg2) in enumerate(alg_pairs):
     i = idx // len(ALGS)
@@ -394,7 +395,6 @@ fd = 'bclone_m5'
 T = 9
 nTrials = 10
 nMemory = 5
-ipd_scenario = 1
 test_size = test_set.shape[0]
 tab_r = np.zeros((test_size, len(ALGS), T))
 tab_r_std = np.zeros((test_size, len(ALGS), T))
@@ -407,7 +407,7 @@ tab_rd_std = np.zeros((test_size, len(ALGS), T))
 tab_pr = np.zeros((test_size, len(ALGS)))
 
 results_bclone = Parallel(n_jobs=-1)(delayed(run_bclone_single_alg)(alg, train_set,
-                                                                    test_set, ipd_scenario, fd, nTrials, T, nMemory) for alg in tqdm(ALGS))
+                                                                    test_set, IPD_SCENARIO, fd, nTrials, T, nMemory) for alg in tqdm(ALGS))
 
 for i, alg_results in enumerate(results_bclone):
     tab_r[:, i, :] = alg_results['r']
@@ -444,7 +444,7 @@ tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
-results = run_ipd_parallel(1, alg_pairs, nMemory, fd)
+results = run_ipd_parallel(IPD_SCENARIO, alg_pairs, nMemory, fd)
 
 for idx, (alg1, alg2) in enumerate(alg_pairs):
     i = idx // len(ALGS)
@@ -495,7 +495,7 @@ tab_rd_std = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
 
 alg_triplets = [[alg1, alg2, alg3]
                 for alg1 in ALGS1 for alg2 in ALGS2 for alg3 in ALGS3]
-results = run_ipd_parallel(1, alg_triplets, nMemory, fd)
+results = run_ipd_parallel(IPD_SCENARIO, alg_triplets, nMemory, fd)
 
 for idx, (alg1, alg2, alg3) in enumerate(alg_triplets):
     it = idx // (len(ALGS2) * len(ALGS3))
@@ -551,7 +551,7 @@ tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
-results = run_ipd_parallel(1, alg_pairs, nMemory, fd)
+results = run_ipd_parallel(IPD_SCENARIO, alg_pairs, nMemory, fd)
 
 for idx, (alg1, alg2) in enumerate(alg_pairs):
     i = idx // len(ALGS)
@@ -595,7 +595,7 @@ tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
-results = run_ipd_parallel(1, alg_pairs, nMemory, fd)
+results = run_ipd_parallel(IPD_SCENARIO, alg_pairs, nMemory, fd)
 
 for idx, (alg1, alg2) in enumerate(alg_pairs):
     i = idx // len(ALGS)
@@ -639,7 +639,7 @@ tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
-results = run_ipd_parallel(1, alg_pairs, nMemory, fd)
+results = run_ipd_parallel(IPD_SCENARIO, alg_pairs, nMemory, fd)
 
 for idx, (alg1, alg2) in enumerate(alg_pairs):
     i = idx // len(ALGS)
@@ -688,7 +688,6 @@ fd = 'bclone_m1'
 T = 9
 nTrials = 10
 nMemory = 1
-ipd_scenario = 1
 test_size = test_set.shape[0]
 tab_r = np.zeros((test_size, len(ALGS), T))
 tab_r_std = np.zeros((test_size, len(ALGS), T))
@@ -701,7 +700,7 @@ tab_rd_std = np.zeros((test_size, len(ALGS), T))
 tab_pr = np.zeros((test_size, len(ALGS)))
 
 results_bclone = Parallel(n_jobs=-1)(delayed(run_bclone_single_alg)(alg, train_set,
-                                                                    test_set, ipd_scenario, fd, nTrials, T, nMemory) for alg in tqdm(ALGS))
+                                                                    test_set, IPD_SCENARIO, fd, nTrials, T, nMemory) for alg in tqdm(ALGS))
 
 for i, alg_results in enumerate(results_bclone):
     tab_r[:, i, :] = alg_results['r']
