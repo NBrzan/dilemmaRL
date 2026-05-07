@@ -1159,7 +1159,7 @@ class IPD(MDP):
     IPD game setting
     """
 
-    def __init__(self, algorithms, reward_functions, nTrials, T, nMemory, Q1=None, Q2=None, Q1s=None, Q2s=None, Traj=None, reputations=None, rep_counts=None):
+    def __init__(self, algorithms, reward_functions, nTrials, T, nMemory, Q1=None, Q2=None, Q1s=None, Q2s=None, Traj=None, reputations=None, rep_counts=None, clear_feats=False):
         MDP.__init__(self, None, reward_functions, nTrials, T,
                      Q1=Q1, Q2=Q2, Q1s=Q1s, Q2s=Q2s, Traj=Traj)
 
@@ -1170,11 +1170,16 @@ class IPD(MDP):
         self.nP = len(self.algs)
         self.moves = []
         self.fQprimes = []
+        self.clear_feats = clear_feats
+
+        # Store initial reputation state for resetting between trials
+        self.init_reputations = np.array(reputations).copy() if reputations is not None else np.zeros(self.nP)
+        self.init_rep_counts = np.array(rep_counts, dtype=int).copy() if rep_counts is not None else np.zeros(self.nP, dtype=int)
 
         # In IPD, the context can be the history of length nMemory
         self.feats = np.zeros((self.nP, nMemory + 1))  # last slot = opponent ρ
-        self.reputations = reputations if reputations is not None else np.zeros(self.nP)            # ρ_k, initialised to 0
-        self.rep_counts = rep_counts if rep_counts is not None else np.zeros(self.nP, dtype=int) # n per player
+        self.reputations = self.init_reputations.copy()
+        self.rep_counts = self.init_rep_counts.copy()
 
         # In IPD: T > R > P > S amd 2R > S+T
         self.reward_from_A = reward_functions[0]  # R for reward
@@ -1216,6 +1221,25 @@ class IPD(MDP):
         self.fQprimes = []
         self.moves = []
         self.Q1s, self.Q2s = [], []
+        
+        # reset to initial rep
+        self.reputations = self.init_reputations.copy()
+        self.rep_counts = self.init_rep_counts.copy()
+        
+        # optionaly clear feats
+        # this is to maintain compatibility with previous experiments
+        if self.clear_feats:
+            self.feats = np.zeros((self.nP, self.nM + 1))
+        
+        for p in range(self.nP):
+            if self.nP == 2:
+                opponent = 1 - p
+            else:
+                # mean rep
+                opponent_ids = [i for i in range(self.nP) if i != p]
+                self.feats[p, -1] = np.mean(self.reputations[opponent_ids])
+                continue
+            self.feats[p, -1] = self.reputations[opponent]
 
         for i, alg in enumerate(self.algs):
             self.fQprimes.append(self.resetQprimeFunction(alg))
@@ -1526,9 +1550,16 @@ class IPD(MDP):
                 "actions": np.ndarray((self.nTrials, self.T))
             })
 
+        total_reputations = np.zeros(self.nP)
+        total_counts = np.zeros(self.nP, dtype=int)
+
         # run batch of experiments and aggregate every experiment result into the final report
         for k in range(self.nTrials):
             tmp = self.experiment()
+            
+            total_reputations += self.reputations
+            total_counts += self.rep_counts
+
             for i in range(self.T):
                 for p in range(self.nP):
                     stats = agent_stats[p]
@@ -1539,6 +1570,10 @@ class IPD(MDP):
                     stats["pos_reward"][k, i] = tmp[i]["pos_reward" + str(p)]
                     stats["neg_reward"][k, i] = tmp[i]["neg_reward" + str(p)]
                     stats["actions"][k, i] = tmp[i]["actions" + str(p)]
+
+        # final rep = average across all trials
+        self.reputations = total_reputations / self.nTrials
+        self.rep_counts = (total_counts / self.nTrials).astype(int)
 
         # save the aggregated stats into report
         for p in range(self.nP):
