@@ -39,6 +39,46 @@ def run_ipd(ipd_scenario,algs,nMemory=5,nTrials=100,T=50,prefix=""):
     r_dff = rs - r_sum/len(algs)
     rs_dff = np.mean(r_dff,1)
     rd_std = np.std(r_dff,1)/np.sqrt(nTrials)
+
+    # function that computes cooperation ratio and convergence round for each algorithm in the IPD experiment
+    def _compute_cooperation_and_convergence(rep, epsilon=0.01):
+        n_agents = len(rep['algs'])
+        T = rep['T']
+
+        # calculate window size based on epsilon
+        if epsilon > 0:
+            window = int(np.ceil(1.0 / epsilon))
+        else:
+            window = 1
+        if window > T:
+            window = T
+
+        cooperation_ratios = []
+        convergence_rounds = []
+
+        for i in range(n_agents):
+            # get cooperation percentage for agent in all rounds and compute average cooperation ratio
+            percentage = np.mean(rep['percent' + str(i)], axis=0) / 100.0
+            coop = float(np.mean(percentage))
+            cooperation_ratios.append(coop)
+
+            # find the earliest round where cooperation percetage converges
+            conv = None
+            for t in range(0, max(1, T - window + 1)):
+                if np.all(np.abs(percentage[t:t + window] - coop) <= epsilon):
+                    conv = t + 1
+                    break
+            
+            # if convergence round is not found, set it to T
+            if conv is None:
+                conv = T
+            convergence_rounds.append(int(conv))
+
+        return cooperation_ratios, convergence_rounds
+
+    coop_ratios, conv_rounds = _compute_cooperation_and_convergence(rep)
+    rep['coop_ratios'] = coop_ratios
+    rep['convergence_rounds'] = conv_rounds
     model_path = './models/'+prefix+'/IPD_'+str(ipd_scenario)+'_m_'+str(nMemory)+'_p_'+ '_'.join(algs)+'.pkl'
     os.makedirs(os.path.dirname(model_path), exist_ok=True)
     with open(model_path, 'wb') as handle:
