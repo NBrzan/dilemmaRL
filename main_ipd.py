@@ -16,7 +16,7 @@ matplotlib.use('Agg')
 
 USE_PARALLEL = False
 GLOBAL_REP_REGISTRY = {}
-
+RESET_REPUTATION_FOR_IPD_RUNS = False
 
 def run_ipd_sequential(ipd_scenario, alg_list, nMemory, prefix):
     results = []
@@ -48,6 +48,9 @@ def run_ipd_parallel(ipd_scenario, alg_list, nMemory, prefix):
 
 
 def run_ipd_all(ipd_scenario, alg_list, nMemory, prefix):
+    if RESET_REPUTATION_FOR_IPD_RUNS:
+        GLOBAL_REP_REGISTRY.clear()
+
     if USE_PARALLEL:
         return run_ipd_parallel(ipd_scenario, alg_list, nMemory, prefix)
     else:
