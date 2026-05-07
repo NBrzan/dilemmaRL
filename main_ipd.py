@@ -14,8 +14,44 @@ import matplotlib
 matplotlib.use('Agg')
 
 
+USE_PARALLEL = False
+GLOBAL_REP_REGISTRY = {}
+
+
+def run_ipd_sequential(ipd_scenario, alg_list, nMemory, prefix):
+    results = []
+    for algs in tqdm(alg_list):
+        reputations = np.zeros(len(algs))
+        rep_counts = np.zeros(len(algs), dtype=int)
+        
+        for i, alg in enumerate(algs):
+            if alg in GLOBAL_REP_REGISTRY:
+                reputations[i] = GLOBAL_REP_REGISTRY[alg][0]
+                rep_counts[i] = GLOBAL_REP_REGISTRY[alg][1]
+        
+        res = run_ipd(ipd_scenario, algs, nMemory=nMemory, prefix=prefix, 
+                      reputations=reputations, rep_counts=rep_counts)
+        
+        *core_res, updated_reps, updated_counts = res
+        results.append(core_res)
+        
+        # Update
+        for i, alg in enumerate(algs):
+            GLOBAL_REP_REGISTRY[alg] = [updated_reps[i], updated_counts[i]]
+            
+    return results
+
+
 def run_ipd_parallel(ipd_scenario, alg_list, nMemory, prefix):
-    return Parallel(n_jobs=-1)(delayed(run_ipd)(ipd_scenario, algs, nMemory=nMemory, prefix=prefix) for algs in tqdm(alg_list))
+    full_results = Parallel(n_jobs=-1)(delayed(run_ipd)(ipd_scenario, algs, nMemory=nMemory, prefix=prefix) for algs in tqdm(alg_list))
+    return [res[:9] for res in full_results]
+
+
+def run_ipd_all(ipd_scenario, alg_list, nMemory, prefix):
+    if USE_PARALLEL:
+        return run_ipd_parallel(ipd_scenario, alg_list, nMemory, prefix)
+    else:
+        return run_ipd_sequential(ipd_scenario, alg_list, nMemory, prefix)
 
 
 def run_bclone_single_alg(alg1, train_set, test_set, ipd_scenario, fd, nTrials, T, nMemory):
@@ -151,7 +187,7 @@ tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
-results = run_ipd_parallel(IPD_SCENARIO, alg_pairs, nMemory, fd)
+results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
 
 for idx, (alg1, alg2) in enumerate(alg_pairs):
     i = idx // len(ALGS)
@@ -202,7 +238,7 @@ tab_rd_std = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
 
 alg_triplets = [[alg1, alg2, alg3]
                 for alg1 in ALGS1 for alg2 in ALGS2 for alg3 in ALGS3]
-results = run_ipd_parallel(IPD_SCENARIO, alg_triplets, nMemory, fd)
+results = run_ipd_all(IPD_SCENARIO, alg_triplets, nMemory, fd)
 
 for idx, (alg1, alg2, alg3) in enumerate(alg_triplets):
     it = idx // (len(ALGS2) * len(ALGS3))
@@ -258,7 +294,7 @@ tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
-results = run_ipd_parallel(IPD_SCENARIO, alg_pairs, nMemory, fd)
+results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
 
 for idx, (alg1, alg2) in enumerate(alg_pairs):
     i = idx // len(ALGS)
@@ -302,7 +338,7 @@ tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
-results = run_ipd_parallel(IPD_SCENARIO, alg_pairs, nMemory, fd)
+results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
 
 for idx, (alg1, alg2) in enumerate(alg_pairs):
     i = idx // len(ALGS)
@@ -346,7 +382,7 @@ tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
-results = run_ipd_parallel(IPD_SCENARIO, alg_pairs, nMemory, fd)
+results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
 
 for idx, (alg1, alg2) in enumerate(alg_pairs):
     i = idx // len(ALGS)
@@ -444,7 +480,7 @@ tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
-results = run_ipd_parallel(IPD_SCENARIO, alg_pairs, nMemory, fd)
+results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
 
 for idx, (alg1, alg2) in enumerate(alg_pairs):
     i = idx // len(ALGS)
@@ -495,7 +531,7 @@ tab_rd_std = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
 
 alg_triplets = [[alg1, alg2, alg3]
                 for alg1 in ALGS1 for alg2 in ALGS2 for alg3 in ALGS3]
-results = run_ipd_parallel(IPD_SCENARIO, alg_triplets, nMemory, fd)
+results = run_ipd_all(IPD_SCENARIO, alg_triplets, nMemory, fd)
 
 for idx, (alg1, alg2, alg3) in enumerate(alg_triplets):
     it = idx // (len(ALGS2) * len(ALGS3))
@@ -551,7 +587,7 @@ tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
-results = run_ipd_parallel(IPD_SCENARIO, alg_pairs, nMemory, fd)
+results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
 
 for idx, (alg1, alg2) in enumerate(alg_pairs):
     i = idx // len(ALGS)
@@ -595,7 +631,7 @@ tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
-results = run_ipd_parallel(IPD_SCENARIO, alg_pairs, nMemory, fd)
+results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
 
 for idx, (alg1, alg2) in enumerate(alg_pairs):
     i = idx // len(ALGS)
@@ -639,7 +675,7 @@ tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
-results = run_ipd_parallel(IPD_SCENARIO, alg_pairs, nMemory, fd)
+results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
 
 for idx, (alg1, alg2) in enumerate(alg_pairs):
     i = idx // len(ALGS)

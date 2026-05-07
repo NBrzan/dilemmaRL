@@ -1159,7 +1159,7 @@ class IPD(MDP):
     IPD game setting
     """
 
-    def __init__(self, algorithms, reward_functions, nTrials, T, nMemory, Q1=None, Q2=None, Q1s=None, Q2s=None, Traj=None):
+    def __init__(self, algorithms, reward_functions, nTrials, T, nMemory, Q1=None, Q2=None, Q1s=None, Q2s=None, Traj=None, reputations=None, rep_counts=None):
         MDP.__init__(self, None, reward_functions, nTrials, T,
                      Q1=Q1, Q2=Q2, Q1s=Q1s, Q2s=Q2s, Traj=Traj)
 
@@ -1172,7 +1172,9 @@ class IPD(MDP):
         self.fQprimes = []
 
         # In IPD, the context can be the history of length nMemory
-        self.feats = np.zeros((self.nP, nMemory))
+        self.feats = np.zeros((self.nP, nMemory + 1))  # last slot = opponent ρ
+        self.reputations = reputations if reputations is not None else np.zeros(self.nP)            # ρ_k, initialised to 0
+        self.rep_counts = rep_counts if rep_counts is not None else np.zeros(self.nP, dtype=int) # n per player
 
         # In IPD: T > R > P > S amd 2R > S+T
         self.reward_from_A = reward_functions[0]  # R for reward
@@ -1214,6 +1216,7 @@ class IPD(MDP):
         self.fQprimes = []
         self.moves = []
         self.Q1s, self.Q2s = [], []
+
         for i, alg in enumerate(self.algs):
             self.fQprimes.append(self.resetQprimeFunction(alg))
             if alg in ['DQL', 'QL', 'SARSA', 'MP', 'SQL', 'SQL2', 'PQL', 'NQL', 'MP', 'ESQL', 'DSQL', 'ADD', 'ADHD', 'AD', 'CP', 'bvFTD', 'PD', 'M', 'CTS', 'SCTS', 'PCTS', 'NCTS', 'cADD', 'cADHD', 'cAD', 'cCP', 'cbvFTD', 'cPD', 'cM']:
@@ -1251,6 +1254,17 @@ class IPD(MDP):
             for t in np.arange(self.nM-1):
                 self.feats[:, t+1] = self.feats[:, t]
             self.feats[:, 0] = self.moves
+
+        # use rep
+        for p in range(self.nP):
+            if self.nP == 2:
+                opponent = 1 - p
+            else:
+                # mean rep
+                opponent_ids = [i for i in range(self.nP) if i != p]
+                self.feats[p, -1] = np.mean(self.reputations[opponent_ids])
+                continue
+            self.feats[p, -1] = self.reputations[opponent]
 
     def action2code(self, a):
         if a == self.ACTION_A:
@@ -1429,6 +1443,13 @@ class IPD(MDP):
                     alpha_t = 1 / np.power(NSAs[p][s][a[p]], .8)
                     alpha.append(alpha_t)
 
+                # update rep
+                for p in range(self.nP):
+                    self.rep_counts[p] += 1
+                    coop = 1 if a[p] == self.ACTION_A else 0
+                    n = self.rep_counts[p]
+                    self.reputations[p] = ((n - 1) * self.reputations[p] + coop) / n
+                    
                 # move to the next state and get the reward
                 fullr, nxt_s = self.move(s, a, N, i)
                 for j, fr in enumerate(fullr):
