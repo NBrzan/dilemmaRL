@@ -175,6 +175,7 @@ mRL_algs = ['SQL', 'AD', 'ADD', 'ADHD', 'bvFTD', 'CP', 'M', 'PD']
 
 fd = 'ipd1_m5'
 nMemory = 5
+print(f"\n Starting 2-agent tournament (nMemory={nMemory}, prefix={fd}) ")
 T = 50
 ALGS = all_algs
 tab_r = np.zeros((len(ALGS), len(ALGS), T))
@@ -219,6 +220,7 @@ with open(path, 'wb') as handle:
 
 fd = 'ipd1_m5_3ag'
 nMemory = 5
+print(f"\n Starting 3-agent tournament (nMemory={nMemory}, prefix={fd}) ")
 T = 50
 ALGS1 = MAB_algs
 ALGS2 = CB_algs
@@ -281,6 +283,7 @@ with open(path, 'wb') as handle:
 # Mental MAB agents
 
 fd = 'ipd1_m5_mMAB'
+print(f"\n Starting tournament for {fd} ")
 nMemory = 5
 T = 50
 ALGS = mMAB_algs
@@ -325,6 +328,7 @@ with open(path, 'wb') as handle:
 # Mental CB agents
 
 fd = 'ipd1_m5_mCB'
+print(f"\n Starting tournament for {fd} ")
 nMemory = 5
 T = 50
 ALGS = mCB_algs
@@ -369,6 +373,7 @@ with open(path, 'wb') as handle:
 # Mental RL agents
 
 fd = 'ipd1_m5_mRL'
+print(f"\n Starting tournament for {fd} ")
 nMemory = 5
 T = 50
 ALGS = mRL_algs
@@ -411,6 +416,7 @@ with open(path, 'wb') as handle:
     pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 # Behavioral Cloning
+print(f"\n Starting Behavioral Cloning phase ({fd}) ")
 
 data = pd.read_csv('./data/all_data.csv')
 trajs = np.array(data[data['period'] == 10].iloc[:, 9:27])  # (8258, 18)
@@ -467,6 +473,7 @@ with open(path, 'wb') as handle:
 # Case with 2 agents
 
 fd = 'ipd1_m1'
+print(f"\n Starting 2-agent tournament (nMemory={nMemory}, prefix={fd}) ")
 nMemory = 1
 T = 50
 ALGS = all_algs
@@ -511,6 +518,7 @@ with open(path, 'wb') as handle:
 # Case with 3 agents
 
 fd = 'ipd1_m1_3ag'
+print(f"\n Starting 3-agent tournament (nMemory={nMemory}, prefix={fd}) ")
 nMemory = 1
 T = 50
 ALGS1 = MAB_algs
@@ -574,6 +582,7 @@ with open(path, 'wb') as handle:
 # Mental MAB agents
 
 fd = 'ipd1_m1_mMAB'
+print(f"\n Starting tournament for {fd} ")
 nMemory = 1
 T = 50
 ALGS = mMAB_algs
@@ -618,6 +627,7 @@ with open(path, 'wb') as handle:
 # Mental CB agents
 
 fd = 'ipd1_m1_mCB'
+print(f"\n Starting tournament for {fd} ")
 nMemory = 1
 T = 50
 ALGS = mCB_algs
@@ -662,6 +672,7 @@ with open(path, 'wb') as handle:
 # Mental RL agents
 
 fd = 'ipd1_m1_mRL'
+print(f"\n Starting tournament for {fd} ")
 nMemory = 1
 T = 50
 ALGS = mRL_algs
@@ -704,6 +715,7 @@ with open(path, 'wb') as handle:
     pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 # Behavioral Cloning
+print(f"\n Starting Behavioral Cloning phase ({fd}) ")
 
 data = pd.read_csv('./data/all_data.csv')
 trajs = np.array(data[data['period'] == 10].iloc[:, 9:27])  # (8258, 18)
