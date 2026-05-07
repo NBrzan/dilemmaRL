@@ -14,8 +14,47 @@ import matplotlib
 matplotlib.use('Agg')
 
 
+USE_PARALLEL = False
+GLOBAL_REP_REGISTRY = {}
+RESET_REPUTATION_FOR_IPD_RUNS = False
+
+def run_ipd_sequential(ipd_scenario, alg_list, nMemory, prefix):
+    results = []
+    for algs in tqdm(alg_list):
+        reputations = np.zeros(len(algs))
+        rep_counts = np.zeros(len(algs), dtype=int)
+        
+        for i, alg in enumerate(algs):
+            if alg in GLOBAL_REP_REGISTRY:
+                reputations[i] = GLOBAL_REP_REGISTRY[alg][0]
+                rep_counts[i] = GLOBAL_REP_REGISTRY[alg][1]
+        
+        res = run_ipd(ipd_scenario, algs, nMemory=nMemory, prefix=prefix, 
+                      reputations=reputations, rep_counts=rep_counts)
+        
+        *core_res, updated_reps, updated_counts = res
+        results.append(core_res)
+        
+        # Update
+        for i, alg in enumerate(algs):
+            GLOBAL_REP_REGISTRY[alg] = [updated_reps[i], updated_counts[i]]
+            
+    return results
+
+
 def run_ipd_parallel(ipd_scenario, alg_list, nMemory, prefix):
-    return Parallel(n_jobs=-1)(delayed(run_ipd)(ipd_scenario, algs, nMemory=nMemory, prefix=prefix) for algs in tqdm(alg_list))
+    full_results = Parallel(n_jobs=-1)(delayed(run_ipd)(ipd_scenario, algs, nMemory=nMemory, prefix=prefix) for algs in tqdm(alg_list))
+    return [res[:9] for res in full_results]
+
+
+def run_ipd_all(ipd_scenario, alg_list, nMemory, prefix):
+    if RESET_REPUTATION_FOR_IPD_RUNS:
+        GLOBAL_REP_REGISTRY.clear()
+
+    if USE_PARALLEL:
+        return run_ipd_parallel(ipd_scenario, alg_list, nMemory, prefix)
+    else:
+        return run_ipd_sequential(ipd_scenario, alg_list, nMemory, prefix)
 
 
 def run_bclone_single_alg(alg1, train_set, test_set, ipd_scenario, fd, nTrials, T, nMemory):
@@ -139,6 +178,7 @@ mRL_algs = ['SQL', 'AD', 'ADD', 'ADHD', 'bvFTD', 'CP', 'M', 'PD']
 
 fd = 'ipd1_m5'
 nMemory = 5
+print(f"\n Starting 2-agent tournament (nMemory={nMemory}, prefix={fd}) ")
 T = 50
 ALGS = all_algs
 tab_r = np.zeros((len(ALGS), len(ALGS), T))
@@ -151,7 +191,7 @@ tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
-results = run_ipd_parallel(IPD_SCENARIO, alg_pairs, nMemory, fd)
+results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
 
 for idx, (alg1, alg2) in enumerate(alg_pairs):
     i = idx // len(ALGS)
@@ -183,6 +223,7 @@ with open(path, 'wb') as handle:
 
 fd = 'ipd1_m5_3ag'
 nMemory = 5
+print(f"\n Starting 3-agent tournament (nMemory={nMemory}, prefix={fd}) ")
 T = 50
 ALGS1 = MAB_algs
 ALGS2 = CB_algs
@@ -202,7 +243,7 @@ tab_rd_std = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
 
 alg_triplets = [[alg1, alg2, alg3]
                 for alg1 in ALGS1 for alg2 in ALGS2 for alg3 in ALGS3]
-results = run_ipd_parallel(IPD_SCENARIO, alg_triplets, nMemory, fd)
+results = run_ipd_all(IPD_SCENARIO, alg_triplets, nMemory, fd)
 
 for idx, (alg1, alg2, alg3) in enumerate(alg_triplets):
     it = idx // (len(ALGS2) * len(ALGS3))
@@ -245,6 +286,7 @@ with open(path, 'wb') as handle:
 # Mental MAB agents
 
 fd = 'ipd1_m5_mMAB'
+print(f"\n Starting tournament for {fd} ")
 nMemory = 5
 T = 50
 ALGS = mMAB_algs
@@ -258,7 +300,7 @@ tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
-results = run_ipd_parallel(IPD_SCENARIO, alg_pairs, nMemory, fd)
+results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
 
 for idx, (alg1, alg2) in enumerate(alg_pairs):
     i = idx // len(ALGS)
@@ -289,6 +331,7 @@ with open(path, 'wb') as handle:
 # Mental CB agents
 
 fd = 'ipd1_m5_mCB'
+print(f"\n Starting tournament for {fd} ")
 nMemory = 5
 T = 50
 ALGS = mCB_algs
@@ -302,7 +345,7 @@ tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
-results = run_ipd_parallel(IPD_SCENARIO, alg_pairs, nMemory, fd)
+results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
 
 for idx, (alg1, alg2) in enumerate(alg_pairs):
     i = idx // len(ALGS)
@@ -333,6 +376,7 @@ with open(path, 'wb') as handle:
 # Mental RL agents
 
 fd = 'ipd1_m5_mRL'
+print(f"\n Starting tournament for {fd} ")
 nMemory = 5
 T = 50
 ALGS = mRL_algs
@@ -346,7 +390,7 @@ tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
-results = run_ipd_parallel(IPD_SCENARIO, alg_pairs, nMemory, fd)
+results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
 
 for idx, (alg1, alg2) in enumerate(alg_pairs):
     i = idx // len(ALGS)
@@ -375,6 +419,7 @@ with open(path, 'wb') as handle:
     pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 # Behavioral Cloning
+print(f"\n Starting Behavioral Cloning phase ({fd}) ")
 
 data = pd.read_csv('./data/all_data.csv')
 trajs = np.array(data[data['period'] == 10].iloc[:, 9:27])  # (8258, 18)
@@ -431,6 +476,7 @@ with open(path, 'wb') as handle:
 # Case with 2 agents
 
 fd = 'ipd1_m1'
+print(f"\n Starting 2-agent tournament (nMemory={nMemory}, prefix={fd}) ")
 nMemory = 1
 T = 50
 ALGS = all_algs
@@ -444,7 +490,7 @@ tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
-results = run_ipd_parallel(IPD_SCENARIO, alg_pairs, nMemory, fd)
+results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
 
 for idx, (alg1, alg2) in enumerate(alg_pairs):
     i = idx // len(ALGS)
@@ -475,6 +521,7 @@ with open(path, 'wb') as handle:
 # Case with 3 agents
 
 fd = 'ipd1_m1_3ag'
+print(f"\n Starting 3-agent tournament (nMemory={nMemory}, prefix={fd}) ")
 nMemory = 1
 T = 50
 ALGS1 = MAB_algs
@@ -495,7 +542,7 @@ tab_rd_std = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
 
 alg_triplets = [[alg1, alg2, alg3]
                 for alg1 in ALGS1 for alg2 in ALGS2 for alg3 in ALGS3]
-results = run_ipd_parallel(IPD_SCENARIO, alg_triplets, nMemory, fd)
+results = run_ipd_all(IPD_SCENARIO, alg_triplets, nMemory, fd)
 
 for idx, (alg1, alg2, alg3) in enumerate(alg_triplets):
     it = idx // (len(ALGS2) * len(ALGS3))
@@ -538,6 +585,7 @@ with open(path, 'wb') as handle:
 # Mental MAB agents
 
 fd = 'ipd1_m1_mMAB'
+print(f"\n Starting tournament for {fd} ")
 nMemory = 1
 T = 50
 ALGS = mMAB_algs
@@ -551,7 +599,7 @@ tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
-results = run_ipd_parallel(IPD_SCENARIO, alg_pairs, nMemory, fd)
+results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
 
 for idx, (alg1, alg2) in enumerate(alg_pairs):
     i = idx // len(ALGS)
@@ -582,6 +630,7 @@ with open(path, 'wb') as handle:
 # Mental CB agents
 
 fd = 'ipd1_m1_mCB'
+print(f"\n Starting tournament for {fd} ")
 nMemory = 1
 T = 50
 ALGS = mCB_algs
@@ -595,7 +644,7 @@ tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
-results = run_ipd_parallel(IPD_SCENARIO, alg_pairs, nMemory, fd)
+results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
 
 for idx, (alg1, alg2) in enumerate(alg_pairs):
     i = idx // len(ALGS)
@@ -626,6 +675,7 @@ with open(path, 'wb') as handle:
 # Mental RL agents
 
 fd = 'ipd1_m1_mRL'
+print(f"\n Starting tournament for {fd} ")
 nMemory = 1
 T = 50
 ALGS = mRL_algs
@@ -639,7 +689,7 @@ tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
-results = run_ipd_parallel(IPD_SCENARIO, alg_pairs, nMemory, fd)
+results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
 
 for idx, (alg1, alg2) in enumerate(alg_pairs):
     i = idx // len(ALGS)
@@ -668,6 +718,7 @@ with open(path, 'wb') as handle:
     pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 # Behavioral Cloning
+print(f"\n Starting Behavioral Cloning phase ({fd}) ")
 
 data = pd.read_csv('./data/all_data.csv')
 trajs = np.array(data[data['period'] == 10].iloc[:, 9:27])  # (8258, 18)

@@ -8,10 +8,11 @@ import pandas as pd
 import seaborn as sns
 import pickle
 
-def run_ipd(ipd_scenario,algs,nMemory=5,nTrials=100,T=50,prefix=""):
-    _,reward_from_A,reward_from_B,reward_from_C,reward_from_D = load_IPD(ipd_scenario,prefix=prefix)
+def run_ipd(ipd_scenario, algs, nMemory=5, nTrials=100, T=50, prefix="", reputations=None, rep_counts=None):
+    _, reward_from_A, reward_from_B, reward_from_C, reward_from_D = load_IPD(
+        ipd_scenario, prefix=prefix)
     reward_functions = (reward_from_A,reward_from_B,reward_from_C,reward_from_D)
-    ipd_case = IPD(algs,reward_functions,nTrials,T,nMemory=nMemory)
+    ipd_case = IPD(algs,reward_functions,nTrials,T,nMemory=nMemory,reputations=reputations,rep_counts=rep_counts)
     rep = ipd_case.run()
     rep['algs'] = algs
     rep['nTrials'] = nTrials
@@ -43,7 +44,7 @@ def run_ipd(ipd_scenario,algs,nMemory=5,nTrials=100,T=50,prefix=""):
     os.makedirs(os.path.dirname(model_path), exist_ok=True)
     with open(model_path, 'wb') as handle:
         pickle.dump(rep, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    return r,r_std,p,p_std,rs_sum,rs_std,rs_dff,rd_std,rep
+    return r,r_std,p,p_std,rs_sum,rs_std,rs_dff,rd_std,rep,ipd_case.reputations,ipd_case.rep_counts
 
 def norm_r(r,min_r,max_r):
     return (r-min_r)/(max_r-min_r)
