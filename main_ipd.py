@@ -91,8 +91,30 @@ def run_bclone_single_alg(alg1, train_set, test_set, ipd_scenario, fd, nTrials, 
         'sstd': np.zeros((test_size, T)),
         'd': np.zeros((test_size, T)),
         'dstd': np.zeros((test_size, T)),
-        'pr': np.zeros(test_size)
+        'pr': np.zeros(test_size),
+        'coop_ratios': np.zeros(test_size), # cooperation ratio metric
+        'convergence_rounds': np.zeros(test_size, dtype=int) # convergence round metric
     }
+
+    # function that computes cooperation ratio and convergence round for each algorithm in the IPD experiment
+    def _compute_cooperation_and_convergence(rep_local, agent_id=0, epsilon=0.01):
+        percentage = np.mean(rep_local['percent' + str(agent_id)], axis=0) / 100.0
+        coop = float(np.mean(percentage))
+        if epsilon > 0:
+            window = int(np.ceil(1.0 / epsilon))
+        else:
+            window = 1
+
+        if window > len(percentage):
+            window = len(percentage)
+
+        conv = len(percentage)
+        for t in range(0, max(1, len(percentage) - window + 1)):
+            if np.all(np.abs(percentage[t:t + window] - coop) <= epsilon):
+                conv = t + 1
+                break
+
+        return coop, int(conv)
 
     for k in np.arange(test_size):
         test_data = test_set[k, :, :]
@@ -133,6 +155,10 @@ def run_bclone_single_alg(alg1, train_set, test_set, ipd_scenario, fd, nTrials, 
         p_dff = p - p_cor
         rs_dff = np.mean(p_dff, 1)
         rd_std = np.std(p_dff, 1) / np.sqrt(nTrials)
+
+        coop_k, conv_k = _compute_cooperation_and_convergence(rep)
+        alg_results['coop_ratios'][k] = coop_k
+        alg_results['convergence_rounds'][k] = conv_k
 
         alg_results['r'][k, :] = r[0]
         alg_results['rstd'][k, :] = r_std[0]
@@ -189,6 +215,8 @@ tab_rs_sum = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_std = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
+tab_coop_ratio = np.zeros((len(ALGS), len(ALGS))) # cooperation ratio metric
+tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int) # convergence round metric
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
 results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
@@ -211,9 +239,14 @@ for idx, (alg1, alg2) in enumerate(alg_pairs):
     tab_rd_std[i, j, :] = rd_std[0]
     tab_rs_dff[j, i, :] = rs_dff[1]
     tab_rd_std[j, i, :] = rd_std[1]
+    if 'coop_ratios' in rep and 'convergence_rounds' in rep:
+        tab_coop_ratio[i, j] = rep['coop_ratios'][0]
+        tab_coop_ratio[j, i] = rep['coop_ratios'][1]
+        tab_conv_round[i, j] = rep['convergence_rounds'][0]
+        tab_conv_round[j, i] = rep['convergence_rounds'][1]
 
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
-       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std}
+       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
 path = './models/ipd1_m5.pkl'
 os.makedirs(os.path.dirname(path), exist_ok=True)
 with open(path, 'wb') as handle:
@@ -240,6 +273,8 @@ tab_rs_sum = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
 tab_rs_std = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
 tab_rs_dff = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
 tab_rd_std = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
+tab_coop_ratio = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL))) # cooperation ratio metric
+tab_conv_round = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL)), dtype=int) # convergence round metric
 
 alg_triplets = [[alg1, alg2, alg3]
                 for alg1 in ALGS1 for alg2 in ALGS2 for alg3 in ALGS3]
@@ -276,8 +311,16 @@ for idx, (alg1, alg2, alg3) in enumerate(alg_triplets):
     tab_rs_dff[k, i, j, :] = rs_dff[2]
     tab_rd_std[k, i, j, :] = rd_std[2]
 
+    if 'coop_ratios' in rep and 'convergence_rounds' in rep:
+        tab_coop_ratio[i, j, k] = rep['coop_ratios'][0]
+        tab_coop_ratio[j, k, i] = rep['coop_ratios'][1]
+        tab_coop_ratio[k, i, j] = rep['coop_ratios'][2]
+        tab_conv_round[i, j, k] = rep['convergence_rounds'][0]
+        tab_conv_round[j, k, i] = rep['convergence_rounds'][1]
+        tab_conv_round[k, i, j] = rep['convergence_rounds'][2]
+
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
-       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std}
+       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
 path = './models/ipd1_m5_3ag.pkl'
 os.makedirs(os.path.dirname(path), exist_ok=True)
 with open(path, 'wb') as handle:
@@ -298,6 +341,8 @@ tab_rs_sum = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_std = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
+tab_coop_ratio = np.zeros((len(ALGS), len(ALGS))) # cooperation ratio metric
+tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int) # convergence round metric
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
 results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
@@ -321,8 +366,14 @@ for idx, (alg1, alg2) in enumerate(alg_pairs):
     tab_rs_dff[j, i, :] = rs_dff[1]
     tab_rd_std[j, i, :] = rd_std[1]
 
+    if 'coop_ratios' in rep and 'convergence_rounds' in rep:
+        tab_coop_ratio[i, j] = rep['coop_ratios'][0]
+        tab_coop_ratio[j, i] = rep['coop_ratios'][1]
+        tab_conv_round[i, j] = rep['convergence_rounds'][0]
+        tab_conv_round[j, i] = rep['convergence_rounds'][1]
+
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
-       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std}
+       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
 path = './models/ipd1_m5_mMAB.pkl'
 os.makedirs(os.path.dirname(path), exist_ok=True)
 with open(path, 'wb') as handle:
@@ -343,6 +394,8 @@ tab_rs_sum = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_std = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
+tab_coop_ratio = np.zeros((len(ALGS), len(ALGS))) # cooperation ratio metric
+tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int) # convergence round metric
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
 results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
@@ -366,8 +419,14 @@ for idx, (alg1, alg2) in enumerate(alg_pairs):
     tab_rs_dff[j, i, :] = rs_dff[1]
     tab_rd_std[j, i, :] = rd_std[1]
 
+    if 'coop_ratios' in rep and 'convergence_rounds' in rep:
+        tab_coop_ratio[i, j] = rep['coop_ratios'][0]
+        tab_coop_ratio[j, i] = rep['coop_ratios'][1]
+        tab_conv_round[i, j] = rep['convergence_rounds'][0]
+        tab_conv_round[j, i] = rep['convergence_rounds'][1]
+
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
-       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std}
+       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
 path = './models/ipd1_m5_mCB.pkl'
 os.makedirs(os.path.dirname(path), exist_ok=True)
 with open(path, 'wb') as handle:
@@ -388,6 +447,8 @@ tab_rs_sum = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_std = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
+tab_coop_ratio = np.zeros((len(ALGS), len(ALGS))) # cooperation ratio metric
+tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int) # convergence round metric
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
 results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
@@ -411,8 +472,14 @@ for idx, (alg1, alg2) in enumerate(alg_pairs):
     tab_rs_dff[j, i, :] = rs_dff[1]
     tab_rd_std[j, i, :] = rd_std[1]
 
+    if 'coop_ratios' in rep and 'convergence_rounds' in rep:
+        tab_coop_ratio[i, j] = rep['coop_ratios'][0]
+        tab_coop_ratio[j, i] = rep['coop_ratios'][1]
+        tab_conv_round[i, j] = rep['convergence_rounds'][0]
+        tab_conv_round[j, i] = rep['convergence_rounds'][1]
+
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
-       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std}
+       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
 path = './models/ipd1_m5_mRL.pkl'
 os.makedirs(os.path.dirname(path), exist_ok=True)
 with open(path, 'wb') as handle:
@@ -450,6 +517,8 @@ tab_rs_std = np.zeros((test_size, len(ALGS), T))
 tab_rs_dff = np.zeros((test_size, len(ALGS), T))
 tab_rd_std = np.zeros((test_size, len(ALGS), T))
 tab_pr = np.zeros((test_size, len(ALGS)))
+tab_coop_ratio = np.zeros((test_size, len(ALGS))) # cooperation ratio metric
+tab_conv_round = np.zeros((test_size, len(ALGS)), dtype=int) # convergence
 
 results_bclone = Parallel(n_jobs=-1)(delayed(run_bclone_single_alg)(alg, train_set,
                                                                     test_set, IPD_SCENARIO, fd, nTrials, T, nMemory) for alg in tqdm(ALGS))
@@ -464,9 +533,11 @@ for i, alg_results in enumerate(results_bclone):
     tab_rs_dff[:, i, :] = alg_results['d']
     tab_rd_std[:, i, :] = alg_results['dstd']
     tab_pr[:, i] = alg_results['pr']
+    tab_coop_ratio[:, i] = alg_results['coop_ratios']
+    tab_conv_round[:, i] = alg_results['convergence_rounds']
 
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std, 's': tab_rs_sum,
-       'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'pr': tab_pr}
+       'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'pr': tab_pr, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
 path = './models/bclone_m5.pkl'
 os.makedirs(os.path.dirname(path), exist_ok=True)
 with open(path, 'wb') as handle:
@@ -488,6 +559,8 @@ tab_rs_sum = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_std = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
+tab_coop_ratio = np.zeros((len(ALGS), len(ALGS))) # cooperation ratio metric
+tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int) # convergence round metric
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
 results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
@@ -511,8 +584,14 @@ for idx, (alg1, alg2) in enumerate(alg_pairs):
     tab_rs_dff[j, i, :] = rs_dff[1]
     tab_rd_std[j, i, :] = rd_std[1]
 
+    if 'coop_ratios' in rep and 'convergence_rounds' in rep:
+        tab_coop_ratio[i, j] = rep['coop_ratios'][0]
+        tab_coop_ratio[j, i] = rep['coop_ratios'][1]
+        tab_conv_round[i, j] = rep['convergence_rounds'][0]
+        tab_conv_round[j, i] = rep['convergence_rounds'][1]
+
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
-       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std}
+       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
 path = './models/ipd1_m1.pkl'
 os.makedirs(os.path.dirname(path), exist_ok=True)
 with open(path, 'wb') as handle:
@@ -539,6 +618,8 @@ tab_rs_sum = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
 tab_rs_std = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
 tab_rs_dff = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
 tab_rd_std = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
+tab_coop_ratio = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL))) # cooperation ratio metric
+tab_conv_round = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL)), dtype=int) # convergence round metric
 
 alg_triplets = [[alg1, alg2, alg3]
                 for alg1 in ALGS1 for alg2 in ALGS2 for alg3 in ALGS3]
@@ -575,8 +656,16 @@ for idx, (alg1, alg2, alg3) in enumerate(alg_triplets):
     tab_rs_dff[k, i, j, :] = rs_dff[2]
     tab_rd_std[k, i, j, :] = rd_std[2]
 
+    if 'coop_ratios' in rep and 'convergence_rounds' in rep:
+        tab_coop_ratio[i, j, k] = rep['coop_ratios'][0]
+        tab_coop_ratio[j, k, i] = rep['coop_ratios'][1]
+        tab_coop_ratio[k, i, j] = rep['coop_ratios'][2]
+        tab_conv_round[i, j, k] = rep['convergence_rounds'][0]
+        tab_conv_round[j, k, i] = rep['convergence_rounds'][1]
+        tab_conv_round[k, i, j] = rep['convergence_rounds'][2]
+
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
-       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std}
+       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
 path = './models/ipd1_m1_3ag.pkl'
 os.makedirs(os.path.dirname(path), exist_ok=True)
 with open(path, 'wb') as handle:
@@ -597,6 +686,8 @@ tab_rs_sum = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_std = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
+tab_coop_ratio = np.zeros((len(ALGS), len(ALGS))) # cooperation ratio metric
+tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int) # convergence round metric
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
 results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
@@ -620,8 +711,14 @@ for idx, (alg1, alg2) in enumerate(alg_pairs):
     tab_rs_dff[j, i, :] = rs_dff[1]
     tab_rd_std[j, i, :] = rd_std[1]
 
+    if 'coop_ratios' in rep and 'convergence_rounds' in rep:
+        tab_coop_ratio[i, j] = rep['coop_ratios'][0]
+        tab_coop_ratio[j, i] = rep['coop_ratios'][1]
+        tab_conv_round[i, j] = rep['convergence_rounds'][0]
+        tab_conv_round[j, i] = rep['convergence_rounds'][1]
+
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
-       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std}
+       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
 path = './models/ipd1_m1_mMAB.pkl'
 os.makedirs(os.path.dirname(path), exist_ok=True)
 with open(path, 'wb') as handle:
@@ -642,6 +739,8 @@ tab_rs_sum = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_std = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
+tab_coop_ratio = np.zeros((len(ALGS), len(ALGS))) # cooperation ratio metric
+tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int) # convergence round metric
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
 results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
@@ -665,8 +764,14 @@ for idx, (alg1, alg2) in enumerate(alg_pairs):
     tab_rs_dff[j, i, :] = rs_dff[1]
     tab_rd_std[j, i, :] = rd_std[1]
 
+    if 'coop_ratios' in rep and 'convergence_rounds' in rep:
+        tab_coop_ratio[i, j] = rep['coop_ratios'][0]
+        tab_coop_ratio[j, i] = rep['coop_ratios'][1]
+        tab_conv_round[i, j] = rep['convergence_rounds'][0]
+        tab_conv_round[j, i] = rep['convergence_rounds'][1]
+
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
-       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std}
+       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
 path = './models/ipd1_m1_mCB.pkl'
 os.makedirs(os.path.dirname(path), exist_ok=True)
 with open(path, 'wb') as handle:
@@ -687,6 +792,8 @@ tab_rs_sum = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_std = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
+tab_coop_ratio = np.zeros((len(ALGS), len(ALGS))) # cooperation ratio metric
+tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int) # convergence round metric
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
 results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
@@ -710,8 +817,14 @@ for idx, (alg1, alg2) in enumerate(alg_pairs):
     tab_rs_dff[j, i, :] = rs_dff[1]
     tab_rd_std[j, i, :] = rd_std[1]
 
+    if 'coop_ratios' in rep and 'convergence_rounds' in rep:
+        tab_coop_ratio[i, j] = rep['coop_ratios'][0]
+        tab_coop_ratio[j, i] = rep['coop_ratios'][1]
+        tab_conv_round[i, j] = rep['convergence_rounds'][0]
+        tab_conv_round[j, i] = rep['convergence_rounds'][1]
+
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
-       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std}
+       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
 path = './models/ipd1_m1_mRL.pkl'
 os.makedirs(os.path.dirname(path), exist_ok=True)
 with open(path, 'wb') as handle:
@@ -749,6 +862,8 @@ tab_rs_std = np.zeros((test_size, len(ALGS), T))
 tab_rs_dff = np.zeros((test_size, len(ALGS), T))
 tab_rd_std = np.zeros((test_size, len(ALGS), T))
 tab_pr = np.zeros((test_size, len(ALGS)))
+tab_coop_ratio = np.zeros((test_size, len(ALGS))) # cooperation ratio metric
+tab_conv_round = np.zeros((test_size, len(ALGS)), dtype=int) # convergence
 
 results_bclone = Parallel(n_jobs=-1)(delayed(run_bclone_single_alg)(alg, train_set,
                                                                     test_set, IPD_SCENARIO, fd, nTrials, T, nMemory) for alg in tqdm(ALGS))
@@ -763,9 +878,11 @@ for i, alg_results in enumerate(results_bclone):
     tab_rs_dff[:, i, :] = alg_results['d']
     tab_rd_std[:, i, :] = alg_results['dstd']
     tab_pr[:, i] = alg_results['pr']
+    tab_coop_ratio[:, i] = alg_results['coop_ratios']
+    tab_conv_round[:, i] = alg_results['convergence_rounds']
 
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std, 's': tab_rs_sum,
-       'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'pr': tab_pr}
+       'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'pr': tab_pr, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
 path = './models/bclone_m1.pkl'
 os.makedirs(os.path.dirname(path), exist_ok=True)
 with open(path, 'wb') as handle:
