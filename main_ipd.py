@@ -49,33 +49,44 @@ def run_ipd_parallel(ipd_scenario, alg_list, nMemory, prefix):
 
 def save_results_to_csv(tab, alg_list, path):
     rows = []
-    T = 0
-    for k in ['r', 'p', 's', 'd']:
-        if k in tab and hasattr(tab[k], 'shape') and len(tab[k].shape) == 3:
-            T = tab[k].shape[2]
-            break
     
-    if T == 0:
-        for k in ['r', 'p', 's', 'd']:
-            if k in tab and hasattr(tab[k], 'shape') and len(tab[k].shape) == 2:
-                T = tab[k].shape[1]
-                break
+    r_arr = tab['r']
+    r_shape = r_arr.shape
+    dims = len(r_shape) - 1
+    T = r_shape[-1]
+    
+    
+    for idx in np.ndindex(r_shape[:-1]):
 
-    for i, alg1 in enumerate(alg_list):
-        for j, alg2 in enumerate(alg_list):
-            base_data = {
-                'alg1': alg1,
-                'alg2': alg2,
-                'coop_ratio': tab['coop'][i, j] if 'coop' in tab else 0,
-                'conv_round': tab['conv'][i, j] if 'conv' in tab else 0,
-            }
-            for t in range(T):
-                row = base_data.copy()
-                row['timestep'] = t
-                if 'r' in tab: row['reward'] = tab['r'][i, j, t]
-                if 'p' in tab: row['coop_pct'] = tab['p'][i, j, t]
-                rows.append(row)
-    
+        base_data = {
+            'coop_ratio': tab['coop'][idx] if 'coop' in tab else 0,
+            'conv_round': tab['conv'][idx] if 'conv' in tab else 0,
+        }
+        
+        if dims == 2:
+            if r_shape[0] == len(alg_list): # Tournament
+                base_data['alg1'] = alg_list[idx[0]]
+                base_data['alg2'] = alg_list[idx[1]]
+            else:
+                base_data['sample_id'] = idx[0] # BC
+                base_data['alg'] = alg_list[idx[1]]
+        elif dims == 3:
+            base_data['alg1'] = alg_list[idx[0]] if idx[0] < len(alg_list) else f'Idx_{idx[0]}'# 3-agent
+            base_data['alg2'] = alg_list[idx[1]] if idx[1] < len(alg_list) else f'Idx_{idx[1]}'
+            base_data['alg3'] = alg_list[idx[2]] if idx[2] < len(alg_list) else f'Idx_{idx[2]}'
+        
+        if dims == 3 and base_data['coop_ratio'] == 0 and np.all(r_arr[idx] == 0):
+            continue
+
+        for t in range(T):
+            row = base_data.copy()
+            row['timestep'] = t
+            full_idx = idx + (t,)
+            if 'r' in tab: row['reward'] = r_arr[full_idx]
+            if 'p' in tab: row['coop_pct'] = tab['p'][full_idx]
+            rows.append(row)
+            
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     pd.DataFrame(rows).to_csv(path, index=False)
     print(f'Saved results to {path}')
 
@@ -354,7 +365,7 @@ tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
        's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
 path = './models/ipd1_m5_3ag.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-save_results_to_csv(tab, ALGS, path)
+save_results_to_csv(tab, ALGSALL, path)
 
 # Mental MAB agents
 
@@ -697,7 +708,7 @@ tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
        's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
 path = './models/ipd1_m1_3ag.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-save_results_to_csv(tab, ALGS, path)
+save_results_to_csv(tab, ALGSALL, path)
 
 # Mental MAB agents
 
