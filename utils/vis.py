@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import math
 import pandas as pd
 import seaborn as sns
-import pickle
+# import pickle
 
 
 def run_ipd(ipd_scenario, algs, nMemory=5, nTrials=100, T=50, prefix="", reputations=None, rep_counts=None):
@@ -81,10 +81,10 @@ def run_ipd(ipd_scenario, algs, nMemory=5, nTrials=100, T=50, prefix="", reputat
     coop_ratios, conv_rounds = _compute_cooperation_and_convergence(rep)
     rep['coop_ratios'] = coop_ratios
     rep['convergence_rounds'] = conv_rounds
-    model_path = './models/'+prefix+'/IPD_'+str(ipd_scenario)+'_m_'+str(nMemory)+'_p_'+ '_'.join(algs)+'.pkl'
+    model_path = './models/'+prefix+'/IPD_'+str(ipd_scenario)+'_m_'+str(nMemory)+'_p_'+ '_'.join(algs)+'.csv'
     os.makedirs(os.path.dirname(model_path), exist_ok=True)
-    with open(model_path, 'wb') as handle:
-        pickle.dump(rep, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    #     with open(model_path, 'wb') as handle:
+    #         pickle.dump(rep, handle, protocol=pickle.HIGHEST_PROTOCOL)
     return r,r_std,p,p_std,rs_sum,rs_std,rs_dff,rd_std,rep,ipd_case.reputations,ipd_case.rep_counts
 
 def norm_r(r,min_r,max_r):

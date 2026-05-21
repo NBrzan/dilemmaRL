@@ -2,7 +2,6 @@
 from scipy.stats.stats import pearsonr
 import pandas as pd
 import numpy as np
-import pickle
 from matplotlib.colors import ListedColormap
 import matplotlib.pyplot as plt
 import os
@@ -47,6 +46,39 @@ def run_ipd_parallel(ipd_scenario, alg_list, nMemory, prefix):
     return [res[:9] for res in full_results]
 
 
+
+def save_results_to_csv(tab, alg_list, path):
+    rows = []
+    T = 0
+    for k in ['r', 'p', 's', 'd']:
+        if k in tab and hasattr(tab[k], 'shape') and len(tab[k].shape) == 3:
+            T = tab[k].shape[2]
+            break
+    
+    if T == 0:
+        for k in ['r', 'p', 's', 'd']:
+            if k in tab and hasattr(tab[k], 'shape') and len(tab[k].shape) == 2:
+                T = tab[k].shape[1]
+                break
+
+    for i, alg1 in enumerate(alg_list):
+        for j, alg2 in enumerate(alg_list):
+            base_data = {
+                'alg1': alg1,
+                'alg2': alg2,
+                'coop_ratio': tab['coop'][i, j] if 'coop' in tab else 0,
+                'conv_round': tab['conv'][i, j] if 'conv' in tab else 0,
+            }
+            for t in range(T):
+                row = base_data.copy()
+                row['timestep'] = t
+                if 'r' in tab: row['reward'] = tab['r'][i, j, t]
+                if 'p' in tab: row['coop_pct'] = tab['p'][i, j, t]
+                rows.append(row)
+    
+    pd.DataFrame(rows).to_csv(path, index=False)
+    print(f'Saved results to {path}')
+
 def run_ipd_all(ipd_scenario, alg_list, nMemory, prefix):
     if RESET_REPUTATION_FOR_IPD_RUNS:
         GLOBAL_REP_REGISTRY.clear()
@@ -76,10 +108,10 @@ def run_bclone_single_alg(alg1, train_set, test_set, ipd_scenario, fd, nTrials, 
     # Save the trained model results from the last training run
     path = './models/' + fd + '/trained_IPD_' + \
         str(ipd_scenario) + '_m_' + str(nMemory) + \
-        '_p_' + '_'.join(algs) + '.pkl'
+        '_p_' + '_'.join(algs) + '.csv'
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, 'wb') as handle:
-        pickle.dump(rep, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    # with open(path, 'wb') as handle: (Replaced by CSV)
+        # Results are now saved via save_results_to_csv later
 
     test_size = test_set.shape[0]
     alg_results = {
@@ -177,7 +209,7 @@ def run_bclone_single_alg(alg1, train_set, test_set, ipd_scenario, fd, nTrials, 
 SMALL_SIZE = 40
 MEDIUM_SIZE = 50
 BIGGER_SIZE = 60
-IPD_SCENARIO = 2 # 1 = iterative 
+IPD_SCENARIO = 1 # 1 = iterative 
 
 plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
 plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
@@ -247,10 +279,9 @@ for idx, (alg1, alg2) in enumerate(alg_pairs):
 
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
        's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
-path = './models/ipd1_m5.pkl'
+path = './models/ipd1_m5.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
+save_results_to_csv(tab, ALGS, path)
 
 # Case with 3 agents
 
@@ -321,10 +352,9 @@ for idx, (alg1, alg2, alg3) in enumerate(alg_triplets):
 
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
        's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
-path = './models/ipd1_m5_3ag.pkl'
+path = './models/ipd1_m5_3ag.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
+save_results_to_csv(tab, ALGS, path)
 
 # Mental MAB agents
 
@@ -374,10 +404,9 @@ for idx, (alg1, alg2) in enumerate(alg_pairs):
 
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
        's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
-path = './models/ipd1_m5_mMAB.pkl'
+path = './models/ipd1_m5_mMAB.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
+save_results_to_csv(tab, ALGS, path)
 
 # Mental CB agents
 
@@ -427,10 +456,9 @@ for idx, (alg1, alg2) in enumerate(alg_pairs):
 
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
        's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
-path = './models/ipd1_m5_mCB.pkl'
+path = './models/ipd1_m5_mCB.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
+save_results_to_csv(tab, ALGS, path)
 
 # Mental RL agents
 
@@ -480,10 +508,9 @@ for idx, (alg1, alg2) in enumerate(alg_pairs):
 
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
        's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
-path = './models/ipd1_m5_mRL.pkl'
+path = './models/ipd1_m5_mRL.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
+save_results_to_csv(tab, ALGS, path)
 
 # Behavioral Cloning
 print(f"\n Starting Behavioral Cloning phase ({fd}) ")
@@ -496,11 +523,15 @@ trajs[trajs == 0] = -1
 split = 8000
 train_set = trajs[:split, :, :]
 test_set = trajs[split:, :, :]
-full_data = {'train': train_set, 'test': test_set}
-path = './data/processed_train_test.pkl'
-os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(full_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+# Save flattened train/test data to CSV
+train_df = pd.DataFrame(train_set.reshape(train_set.shape[0], -1))
+train_df['split'] = 'train'
+test_df = pd.DataFrame(test_set.reshape(test_set.shape[0], -1))
+test_df['split'] = 'test'
+pd.concat([train_df, test_df]).to_csv('./data/processed_train_test.csv', index=False)
+print('Saved processed data to ./data/processed_train_test.csv')
+
 
 ALGS = agent_algs
 fd = 'bclone_m5'
@@ -538,10 +569,9 @@ for i, alg_results in enumerate(results_bclone):
 
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std, 's': tab_rs_sum,
        'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'pr': tab_pr, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
-path = './models/bclone_m5.pkl'
+path = './models/bclone_m5.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
+save_results_to_csv(tab, ALGS, path)
 
 
 # Case with 2 agents
@@ -592,10 +622,9 @@ for idx, (alg1, alg2) in enumerate(alg_pairs):
 
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
        's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
-path = './models/ipd1_m1.pkl'
+path = './models/ipd1_m1.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
+save_results_to_csv(tab, ALGS, path)
 
 # Case with 3 agents
 
@@ -666,10 +695,9 @@ for idx, (alg1, alg2, alg3) in enumerate(alg_triplets):
 
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
        's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
-path = './models/ipd1_m1_3ag.pkl'
+path = './models/ipd1_m1_3ag.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
+save_results_to_csv(tab, ALGS, path)
 
 # Mental MAB agents
 
@@ -719,10 +747,9 @@ for idx, (alg1, alg2) in enumerate(alg_pairs):
 
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
        's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
-path = './models/ipd1_m1_mMAB.pkl'
+path = './models/ipd1_m1_mMAB.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
+save_results_to_csv(tab, ALGS, path)
 
 # Mental CB agents
 
@@ -772,10 +799,9 @@ for idx, (alg1, alg2) in enumerate(alg_pairs):
 
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
        's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
-path = './models/ipd1_m1_mCB.pkl'
+path = './models/ipd1_m1_mCB.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
+save_results_to_csv(tab, ALGS, path)
 
 # Mental RL agents
 
@@ -825,10 +851,9 @@ for idx, (alg1, alg2) in enumerate(alg_pairs):
 
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
        's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
-path = './models/ipd1_m1_mRL.pkl'
+path = './models/ipd1_m1_mRL.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
+save_results_to_csv(tab, ALGS, path)
 
 # Behavioral Cloning
 print(f"\n Starting Behavioral Cloning phase ({fd}) ")
@@ -841,11 +866,15 @@ trajs[trajs == 0] = -1
 split = 8000
 train_set = trajs[:split, :, :]
 test_set = trajs[split:, :, :]
-full_data = {'train': train_set, 'test': test_set}
-path = './data/processed_train_test.pkl'
-os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(full_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+# Save flattened train/test data to CSV
+train_df = pd.DataFrame(train_set.reshape(train_set.shape[0], -1))
+train_df['split'] = 'train'
+test_df = pd.DataFrame(test_set.reshape(test_set.shape[0], -1))
+test_df['split'] = 'test'
+pd.concat([train_df, test_df]).to_csv('./data/processed_train_test.csv', index=False)
+print('Saved processed data to ./data/processed_train_test.csv')
+
 
 ALGS = agent_algs
 fd = 'bclone_m1'
@@ -883,7 +912,6 @@ for i, alg_results in enumerate(results_bclone):
 
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std, 's': tab_rs_sum,
        'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'pr': tab_pr, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
-path = './models/bclone_m1.pkl'
+path = './models/bclone_m1.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
+save_results_to_csv(tab, ALGS, path)
