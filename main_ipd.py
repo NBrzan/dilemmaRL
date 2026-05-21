@@ -34,7 +34,8 @@ def run_ipd_sequential(ipd_scenario, alg_list, nMemory, prefix):
             rep_counts = None
         
         res = run_ipd(ipd_scenario, algs, nMemory=nMemory, prefix=prefix, 
-                      reputations=reputations, rep_counts=rep_counts)
+                      reputations=reputations, rep_counts=rep_counts,
+                      enable_reputation=ENABLE_REPUTATION)
         
         *core_res, updated_reps, updated_counts = res
         results.append(core_res)
