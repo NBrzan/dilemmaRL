@@ -2,7 +2,6 @@
 from scipy.stats.stats import pearsonr
 import pandas as pd
 import numpy as np
-import pickle
 from matplotlib.colors import ListedColormap
 import matplotlib.pyplot as plt
 import os
@@ -16,45 +15,112 @@ matplotlib.use('Agg')
 
 USE_PARALLEL = False
 GLOBAL_REP_REGISTRY = {}
-RESET_REPUTATION_FOR_IPD_RUNS = False
+RESET_REPUTATION_FOR_IPD_RUNS = True
+ENABLE_REPUTATION = True
 
 def run_ipd_sequential(ipd_scenario, alg_list, nMemory, prefix):
     results = []
     for algs in tqdm(alg_list):
-        reputations = np.zeros(len(algs))
-        rep_counts = np.zeros(len(algs), dtype=int)
-        
-        for i, alg in enumerate(algs):
-            if alg in GLOBAL_REP_REGISTRY:
-                reputations[i] = GLOBAL_REP_REGISTRY[alg][0]
-                rep_counts[i] = GLOBAL_REP_REGISTRY[alg][1]
+        if ENABLE_REPUTATION:
+            reputations = np.zeros(len(algs))
+            rep_counts = np.zeros(len(algs), dtype=int)
+            
+            for i, alg in enumerate(algs):
+                if alg in GLOBAL_REP_REGISTRY:
+                    reputations[i] = GLOBAL_REP_REGISTRY[alg][0]
+                    rep_counts[i] = GLOBAL_REP_REGISTRY[alg][1]
+        else:
+            reputations = None
+            rep_counts = None
         
         res = run_ipd(ipd_scenario, algs, nMemory=nMemory, prefix=prefix, 
-                      reputations=reputations, rep_counts=rep_counts)
+                      reputations=reputations, rep_counts=rep_counts,
+                      enable_reputation=ENABLE_REPUTATION)
         
         *core_res, updated_reps, updated_counts = res
         results.append(core_res)
         
-        # Update
-        for i, alg in enumerate(algs):
-            GLOBAL_REP_REGISTRY[alg] = [updated_reps[i], updated_counts[i]]
+        # Update registry
+        if ENABLE_REPUTATION:
+            for i, alg in enumerate(algs):
+                GLOBAL_REP_REGISTRY[alg] = [updated_reps[i], updated_counts[i]]
             
     return results
 
 
 def run_ipd_parallel(ipd_scenario, alg_list, nMemory, prefix):
-    full_results = Parallel(n_jobs=-1)(delayed(run_ipd)(ipd_scenario, algs, nMemory=nMemory, prefix=prefix) for algs in tqdm(alg_list))
+    full_results = Parallel(n_jobs=-1)(delayed(run_ipd)(ipd_scenario, algs, nMemory=nMemory, prefix=prefix, reputations=None, rep_counts=None, enable_reputation=ENABLE_REPUTATION) for algs in tqdm(alg_list))
     return [res[:9] for res in full_results]
 
 
+
+def save_results_to_csv(tab, alg_list, path):
+    rows = []
+    
+    r_arr = tab['r']
+    r_shape = r_arr.shape
+    dims = len(r_shape) - 1
+    T = r_shape[-1]
+    
+    
+    for idx in np.ndindex(r_shape[:-1]):
+
+        base_data = {
+            'coop_ratio': tab['coop'][idx] if 'coop' in tab else 0,
+            'conv_round': tab['conv'][idx] if 'conv' in tab else 0,
+        }
+        
+        if dims == 2:
+            if r_shape[0] == len(alg_list): # Tournament
+                base_data['alg1'] = alg_list[idx[0]]
+                base_data['alg2'] = alg_list[idx[1]]
+            else:
+                base_data['sample_id'] = idx[0] # BC
+                base_data['alg'] = alg_list[idx[1]]
+        elif dims == 3:
+            base_data['alg1'] = alg_list[idx[0]] if idx[0] < len(alg_list) else f'Idx_{idx[0]}'# 3-agent
+            base_data['alg2'] = alg_list[idx[1]] if idx[1] < len(alg_list) else f'Idx_{idx[1]}'
+            base_data['alg3'] = alg_list[idx[2]] if idx[2] < len(alg_list) else f'Idx_{idx[2]}'
+        
+        if dims == 3 and base_data['coop_ratio'] == 0 and np.all(r_arr[idx] == 0):
+            continue
+
+        for t in range(T):
+            row = base_data.copy()
+            row['timestep'] = t
+            full_idx = idx + (t,)
+            if 'r' in tab: row['reward'] = r_arr[full_idx]
+            if 'p' in tab: row['coop_pct'] = tab['p'][full_idx]
+            rows.append(row)
+            
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    pd.DataFrame(rows).to_csv(path, index=False)
+    print(f'Saved results to {path}')
+
+def save_reputation_registry(path):
+
+    rows = []
+    for alg in sorted(GLOBAL_REP_REGISTRY.keys()):
+        val = GLOBAL_REP_REGISTRY[alg]
+        rows.append({'algorithm': alg, 'reputation': val[0], 'count': val[1]})
+    
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    pd.DataFrame(rows).to_csv(path, index=False)
+    print(f'Saved reputation registry to {path}')
+
 def run_ipd_all(ipd_scenario, alg_list, nMemory, prefix):
-    if RESET_REPUTATION_FOR_IPD_RUNS:
+    if RESET_REPUTATION_FOR_IPD_RUNS and ENABLE_REPUTATION:
         GLOBAL_REP_REGISTRY.clear()
 
     if USE_PARALLEL:
-        return run_ipd_parallel(ipd_scenario, alg_list, nMemory, prefix)
+        results = run_ipd_parallel(ipd_scenario, alg_list, nMemory, prefix)
     else:
-        return run_ipd_sequential(ipd_scenario, alg_list, nMemory, prefix)
+        results = run_ipd_sequential(ipd_scenario, alg_list, nMemory, prefix)
+    
+    if ENABLE_REPUTATION:
+        save_reputation_registry(f'./models/{prefix}_reputations.csv')
+        
+    return results
 
 
 def run_bclone_single_alg(alg1, train_set, test_set, ipd_scenario, fd, nTrials, T, nMemory):
@@ -76,10 +142,10 @@ def run_bclone_single_alg(alg1, train_set, test_set, ipd_scenario, fd, nTrials, 
     # Save the trained model results from the last training run
     path = './models/' + fd + '/trained_IPD_' + \
         str(ipd_scenario) + '_m_' + str(nMemory) + \
-        '_p_' + '_'.join(algs) + '.pkl'
+        '_p_' + '_'.join(algs) + '.csv'
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, 'wb') as handle:
-        pickle.dump(rep, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    # with open(path, 'wb') as handle: (Replaced by CSV)
+        # Results are now saved via save_results_to_csv later
 
     test_size = test_set.shape[0]
     alg_results = {
@@ -91,8 +157,30 @@ def run_bclone_single_alg(alg1, train_set, test_set, ipd_scenario, fd, nTrials, 
         'sstd': np.zeros((test_size, T)),
         'd': np.zeros((test_size, T)),
         'dstd': np.zeros((test_size, T)),
-        'pr': np.zeros(test_size)
+        'pr': np.zeros(test_size),
+        'coop_ratios': np.zeros(test_size), # cooperation ratio metric
+        'convergence_rounds': np.zeros(test_size, dtype=int) # convergence round metric
     }
+
+    # function that computes cooperation ratio and convergence round for each algorithm in the IPD experiment
+    def _compute_cooperation_and_convergence(rep_local, agent_id=0, epsilon=0.01):
+        percentage = np.mean(rep_local['percent' + str(agent_id)], axis=0) / 100.0
+        coop = float(np.mean(percentage))
+        if epsilon > 0:
+            window = int(np.ceil(1.0 / epsilon))
+        else:
+            window = 1
+
+        if window > len(percentage):
+            window = len(percentage)
+
+        conv = len(percentage)
+        for t in range(0, max(1, len(percentage) - window + 1)):
+            if np.all(np.abs(percentage[t:t + window] - coop) <= epsilon):
+                conv = t + 1
+                break
+
+        return coop, int(conv)
 
     for k in np.arange(test_size):
         test_data = test_set[k, :, :]
@@ -134,6 +222,10 @@ def run_bclone_single_alg(alg1, train_set, test_set, ipd_scenario, fd, nTrials, 
         rs_dff = np.mean(p_dff, 1)
         rd_std = np.std(p_dff, 1) / np.sqrt(nTrials)
 
+        coop_k, conv_k = _compute_cooperation_and_convergence(rep)
+        alg_results['coop_ratios'][k] = coop_k
+        alg_results['convergence_rounds'][k] = conv_k
+
         alg_results['r'][k, :] = r[0]
         alg_results['rstd'][k, :] = r_std[0]
         alg_results['p'][k, :] = p[0]
@@ -151,7 +243,7 @@ def run_bclone_single_alg(alg1, train_set, test_set, ipd_scenario, fd, nTrials, 
 SMALL_SIZE = 40
 MEDIUM_SIZE = 50
 BIGGER_SIZE = 60
-IPD_SCENARIO = 2 # 1 = iterative 
+IPD_SCENARIO = 1 # 1 = iterative 
 
 plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
 plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
@@ -189,6 +281,8 @@ tab_rs_sum = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_std = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
+tab_coop_ratio = np.zeros((len(ALGS), len(ALGS))) # cooperation ratio metric
+tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int) # convergence round metric
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
 results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
@@ -211,13 +305,17 @@ for idx, (alg1, alg2) in enumerate(alg_pairs):
     tab_rd_std[i, j, :] = rd_std[0]
     tab_rs_dff[j, i, :] = rs_dff[1]
     tab_rd_std[j, i, :] = rd_std[1]
+    if 'coop_ratios' in rep and 'convergence_rounds' in rep:
+        tab_coop_ratio[i, j] = rep['coop_ratios'][0]
+        tab_coop_ratio[j, i] = rep['coop_ratios'][1]
+        tab_conv_round[i, j] = rep['convergence_rounds'][0]
+        tab_conv_round[j, i] = rep['convergence_rounds'][1]
 
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
-       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std}
-path = './models/ipd1_m5.pkl'
+       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
+path = './models/ipd1_m5.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
+save_results_to_csv(tab, ALGS, path)
 
 # Case with 3 agents
 
@@ -240,6 +338,8 @@ tab_rs_sum = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
 tab_rs_std = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
 tab_rs_dff = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
 tab_rd_std = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
+tab_coop_ratio = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL))) # cooperation ratio metric
+tab_conv_round = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL)), dtype=int) # convergence round metric
 
 alg_triplets = [[alg1, alg2, alg3]
                 for alg1 in ALGS1 for alg2 in ALGS2 for alg3 in ALGS3]
@@ -276,12 +376,19 @@ for idx, (alg1, alg2, alg3) in enumerate(alg_triplets):
     tab_rs_dff[k, i, j, :] = rs_dff[2]
     tab_rd_std[k, i, j, :] = rd_std[2]
 
+    if 'coop_ratios' in rep and 'convergence_rounds' in rep:
+        tab_coop_ratio[i, j, k] = rep['coop_ratios'][0]
+        tab_coop_ratio[j, k, i] = rep['coop_ratios'][1]
+        tab_coop_ratio[k, i, j] = rep['coop_ratios'][2]
+        tab_conv_round[i, j, k] = rep['convergence_rounds'][0]
+        tab_conv_round[j, k, i] = rep['convergence_rounds'][1]
+        tab_conv_round[k, i, j] = rep['convergence_rounds'][2]
+
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
-       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std}
-path = './models/ipd1_m5_3ag.pkl'
+       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
+path = './models/ipd1_m5_3ag.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
+save_results_to_csv(tab, ALGSALL, path)
 
 # Mental MAB agents
 
@@ -298,6 +405,8 @@ tab_rs_sum = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_std = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
+tab_coop_ratio = np.zeros((len(ALGS), len(ALGS))) # cooperation ratio metric
+tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int) # convergence round metric
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
 results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
@@ -321,12 +430,17 @@ for idx, (alg1, alg2) in enumerate(alg_pairs):
     tab_rs_dff[j, i, :] = rs_dff[1]
     tab_rd_std[j, i, :] = rd_std[1]
 
+    if 'coop_ratios' in rep and 'convergence_rounds' in rep:
+        tab_coop_ratio[i, j] = rep['coop_ratios'][0]
+        tab_coop_ratio[j, i] = rep['coop_ratios'][1]
+        tab_conv_round[i, j] = rep['convergence_rounds'][0]
+        tab_conv_round[j, i] = rep['convergence_rounds'][1]
+
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
-       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std}
-path = './models/ipd1_m5_mMAB.pkl'
+       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
+path = './models/ipd1_m5_mMAB.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
+save_results_to_csv(tab, ALGS, path)
 
 # Mental CB agents
 
@@ -343,6 +457,8 @@ tab_rs_sum = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_std = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
+tab_coop_ratio = np.zeros((len(ALGS), len(ALGS))) # cooperation ratio metric
+tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int) # convergence round metric
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
 results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
@@ -366,12 +482,17 @@ for idx, (alg1, alg2) in enumerate(alg_pairs):
     tab_rs_dff[j, i, :] = rs_dff[1]
     tab_rd_std[j, i, :] = rd_std[1]
 
+    if 'coop_ratios' in rep and 'convergence_rounds' in rep:
+        tab_coop_ratio[i, j] = rep['coop_ratios'][0]
+        tab_coop_ratio[j, i] = rep['coop_ratios'][1]
+        tab_conv_round[i, j] = rep['convergence_rounds'][0]
+        tab_conv_round[j, i] = rep['convergence_rounds'][1]
+
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
-       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std}
-path = './models/ipd1_m5_mCB.pkl'
+       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
+path = './models/ipd1_m5_mCB.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
+save_results_to_csv(tab, ALGS, path)
 
 # Mental RL agents
 
@@ -388,6 +509,8 @@ tab_rs_sum = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_std = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
+tab_coop_ratio = np.zeros((len(ALGS), len(ALGS))) # cooperation ratio metric
+tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int) # convergence round metric
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
 results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
@@ -411,12 +534,17 @@ for idx, (alg1, alg2) in enumerate(alg_pairs):
     tab_rs_dff[j, i, :] = rs_dff[1]
     tab_rd_std[j, i, :] = rd_std[1]
 
+    if 'coop_ratios' in rep and 'convergence_rounds' in rep:
+        tab_coop_ratio[i, j] = rep['coop_ratios'][0]
+        tab_coop_ratio[j, i] = rep['coop_ratios'][1]
+        tab_conv_round[i, j] = rep['convergence_rounds'][0]
+        tab_conv_round[j, i] = rep['convergence_rounds'][1]
+
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
-       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std}
-path = './models/ipd1_m5_mRL.pkl'
+       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
+path = './models/ipd1_m5_mRL.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
+save_results_to_csv(tab, ALGS, path)
 
 # Behavioral Cloning
 print(f"\n Starting Behavioral Cloning phase ({fd}) ")
@@ -429,11 +557,15 @@ trajs[trajs == 0] = -1
 split = 8000
 train_set = trajs[:split, :, :]
 test_set = trajs[split:, :, :]
-full_data = {'train': train_set, 'test': test_set}
-path = './data/processed_train_test.pkl'
-os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(full_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+# Save flattened train/test data to CSV
+train_df = pd.DataFrame(train_set.reshape(train_set.shape[0], -1))
+train_df['split'] = 'train'
+test_df = pd.DataFrame(test_set.reshape(test_set.shape[0], -1))
+test_df['split'] = 'test'
+pd.concat([train_df, test_df]).to_csv('./data/processed_train_test.csv', index=False)
+print('Saved processed data to ./data/processed_train_test.csv')
+
 
 ALGS = agent_algs
 fd = 'bclone_m5'
@@ -450,6 +582,8 @@ tab_rs_std = np.zeros((test_size, len(ALGS), T))
 tab_rs_dff = np.zeros((test_size, len(ALGS), T))
 tab_rd_std = np.zeros((test_size, len(ALGS), T))
 tab_pr = np.zeros((test_size, len(ALGS)))
+tab_coop_ratio = np.zeros((test_size, len(ALGS))) # cooperation ratio metric
+tab_conv_round = np.zeros((test_size, len(ALGS)), dtype=int) # convergence
 
 results_bclone = Parallel(n_jobs=-1)(delayed(run_bclone_single_alg)(alg, train_set,
                                                                     test_set, IPD_SCENARIO, fd, nTrials, T, nMemory) for alg in tqdm(ALGS))
@@ -464,13 +598,14 @@ for i, alg_results in enumerate(results_bclone):
     tab_rs_dff[:, i, :] = alg_results['d']
     tab_rd_std[:, i, :] = alg_results['dstd']
     tab_pr[:, i] = alg_results['pr']
+    tab_coop_ratio[:, i] = alg_results['coop_ratios']
+    tab_conv_round[:, i] = alg_results['convergence_rounds']
 
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std, 's': tab_rs_sum,
-       'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'pr': tab_pr}
-path = './models/bclone_m5.pkl'
+       'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'pr': tab_pr, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
+path = './models/bclone_m5.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
+save_results_to_csv(tab, ALGS, path)
 
 
 # Case with 2 agents
@@ -488,6 +623,8 @@ tab_rs_sum = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_std = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
+tab_coop_ratio = np.zeros((len(ALGS), len(ALGS))) # cooperation ratio metric
+tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int) # convergence round metric
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
 results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
@@ -511,12 +648,17 @@ for idx, (alg1, alg2) in enumerate(alg_pairs):
     tab_rs_dff[j, i, :] = rs_dff[1]
     tab_rd_std[j, i, :] = rd_std[1]
 
+    if 'coop_ratios' in rep and 'convergence_rounds' in rep:
+        tab_coop_ratio[i, j] = rep['coop_ratios'][0]
+        tab_coop_ratio[j, i] = rep['coop_ratios'][1]
+        tab_conv_round[i, j] = rep['convergence_rounds'][0]
+        tab_conv_round[j, i] = rep['convergence_rounds'][1]
+
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
-       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std}
-path = './models/ipd1_m1.pkl'
+       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
+path = './models/ipd1_m1.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
+save_results_to_csv(tab, ALGS, path)
 
 # Case with 3 agents
 
@@ -539,6 +681,8 @@ tab_rs_sum = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
 tab_rs_std = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
 tab_rs_dff = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
 tab_rd_std = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
+tab_coop_ratio = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL))) # cooperation ratio metric
+tab_conv_round = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL)), dtype=int) # convergence round metric
 
 alg_triplets = [[alg1, alg2, alg3]
                 for alg1 in ALGS1 for alg2 in ALGS2 for alg3 in ALGS3]
@@ -575,12 +719,19 @@ for idx, (alg1, alg2, alg3) in enumerate(alg_triplets):
     tab_rs_dff[k, i, j, :] = rs_dff[2]
     tab_rd_std[k, i, j, :] = rd_std[2]
 
+    if 'coop_ratios' in rep and 'convergence_rounds' in rep:
+        tab_coop_ratio[i, j, k] = rep['coop_ratios'][0]
+        tab_coop_ratio[j, k, i] = rep['coop_ratios'][1]
+        tab_coop_ratio[k, i, j] = rep['coop_ratios'][2]
+        tab_conv_round[i, j, k] = rep['convergence_rounds'][0]
+        tab_conv_round[j, k, i] = rep['convergence_rounds'][1]
+        tab_conv_round[k, i, j] = rep['convergence_rounds'][2]
+
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
-       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std}
-path = './models/ipd1_m1_3ag.pkl'
+       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
+path = './models/ipd1_m1_3ag.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
+save_results_to_csv(tab, ALGSALL, path)
 
 # Mental MAB agents
 
@@ -597,6 +748,8 @@ tab_rs_sum = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_std = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
+tab_coop_ratio = np.zeros((len(ALGS), len(ALGS))) # cooperation ratio metric
+tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int) # convergence round metric
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
 results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
@@ -620,12 +773,17 @@ for idx, (alg1, alg2) in enumerate(alg_pairs):
     tab_rs_dff[j, i, :] = rs_dff[1]
     tab_rd_std[j, i, :] = rd_std[1]
 
+    if 'coop_ratios' in rep and 'convergence_rounds' in rep:
+        tab_coop_ratio[i, j] = rep['coop_ratios'][0]
+        tab_coop_ratio[j, i] = rep['coop_ratios'][1]
+        tab_conv_round[i, j] = rep['convergence_rounds'][0]
+        tab_conv_round[j, i] = rep['convergence_rounds'][1]
+
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
-       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std}
-path = './models/ipd1_m1_mMAB.pkl'
+       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
+path = './models/ipd1_m1_mMAB.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
+save_results_to_csv(tab, ALGS, path)
 
 # Mental CB agents
 
@@ -642,6 +800,8 @@ tab_rs_sum = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_std = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
+tab_coop_ratio = np.zeros((len(ALGS), len(ALGS))) # cooperation ratio metric
+tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int) # convergence round metric
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
 results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
@@ -665,12 +825,17 @@ for idx, (alg1, alg2) in enumerate(alg_pairs):
     tab_rs_dff[j, i, :] = rs_dff[1]
     tab_rd_std[j, i, :] = rd_std[1]
 
+    if 'coop_ratios' in rep and 'convergence_rounds' in rep:
+        tab_coop_ratio[i, j] = rep['coop_ratios'][0]
+        tab_coop_ratio[j, i] = rep['coop_ratios'][1]
+        tab_conv_round[i, j] = rep['convergence_rounds'][0]
+        tab_conv_round[j, i] = rep['convergence_rounds'][1]
+
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
-       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std}
-path = './models/ipd1_m1_mCB.pkl'
+       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
+path = './models/ipd1_m1_mCB.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
+save_results_to_csv(tab, ALGS, path)
 
 # Mental RL agents
 
@@ -687,6 +852,8 @@ tab_rs_sum = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_std = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
+tab_coop_ratio = np.zeros((len(ALGS), len(ALGS))) # cooperation ratio metric
+tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int) # convergence round metric
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
 results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
@@ -710,12 +877,17 @@ for idx, (alg1, alg2) in enumerate(alg_pairs):
     tab_rs_dff[j, i, :] = rs_dff[1]
     tab_rd_std[j, i, :] = rd_std[1]
 
+    if 'coop_ratios' in rep and 'convergence_rounds' in rep:
+        tab_coop_ratio[i, j] = rep['coop_ratios'][0]
+        tab_coop_ratio[j, i] = rep['coop_ratios'][1]
+        tab_conv_round[i, j] = rep['convergence_rounds'][0]
+        tab_conv_round[j, i] = rep['convergence_rounds'][1]
+
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std,
-       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std}
-path = './models/ipd1_m1_mRL.pkl'
+       's': tab_rs_sum, 'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
+path = './models/ipd1_m1_mRL.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
+save_results_to_csv(tab, ALGS, path)
 
 # Behavioral Cloning
 print(f"\n Starting Behavioral Cloning phase ({fd}) ")
@@ -728,11 +900,15 @@ trajs[trajs == 0] = -1
 split = 8000
 train_set = trajs[:split, :, :]
 test_set = trajs[split:, :, :]
-full_data = {'train': train_set, 'test': test_set}
-path = './data/processed_train_test.pkl'
-os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(full_data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+# Save flattened train/test data to CSV
+train_df = pd.DataFrame(train_set.reshape(train_set.shape[0], -1))
+train_df['split'] = 'train'
+test_df = pd.DataFrame(test_set.reshape(test_set.shape[0], -1))
+test_df['split'] = 'test'
+pd.concat([train_df, test_df]).to_csv('./data/processed_train_test.csv', index=False)
+print('Saved processed data to ./data/processed_train_test.csv')
+
 
 ALGS = agent_algs
 fd = 'bclone_m1'
@@ -749,6 +925,8 @@ tab_rs_std = np.zeros((test_size, len(ALGS), T))
 tab_rs_dff = np.zeros((test_size, len(ALGS), T))
 tab_rd_std = np.zeros((test_size, len(ALGS), T))
 tab_pr = np.zeros((test_size, len(ALGS)))
+tab_coop_ratio = np.zeros((test_size, len(ALGS))) # cooperation ratio metric
+tab_conv_round = np.zeros((test_size, len(ALGS)), dtype=int) # convergence
 
 results_bclone = Parallel(n_jobs=-1)(delayed(run_bclone_single_alg)(alg, train_set,
                                                                     test_set, IPD_SCENARIO, fd, nTrials, T, nMemory) for alg in tqdm(ALGS))
@@ -763,10 +941,11 @@ for i, alg_results in enumerate(results_bclone):
     tab_rs_dff[:, i, :] = alg_results['d']
     tab_rd_std[:, i, :] = alg_results['dstd']
     tab_pr[:, i] = alg_results['pr']
+    tab_coop_ratio[:, i] = alg_results['coop_ratios']
+    tab_conv_round[:, i] = alg_results['convergence_rounds']
 
 tab = {'r': tab_r, 'rstd': tab_r_std, 'p': tab_p, 'pstd': tab_p_std, 's': tab_rs_sum,
-       'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'pr': tab_pr}
-path = './models/bclone_m1.pkl'
+       'sstd': tab_rs_std, 'd': tab_rs_dff, 'dstd': tab_rd_std, 'pr': tab_pr, 'coop': tab_coop_ratio, 'conv': tab_conv_round}
+path = './models/bclone_m1.csv'
 os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path, 'wb') as handle:
-    pickle.dump(tab, handle, protocol=pickle.HIGHEST_PROTOCOL)
+save_results_to_csv(tab, ALGS, path)
