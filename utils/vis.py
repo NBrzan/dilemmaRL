@@ -88,7 +88,7 @@ def run_ipd(ipd_scenario, algs, nMemory=5, nTrials=100, T=50, prefix="", reputat
     return r,r_std,p,p_std,rs_sum,rs_std,rs_dff,rd_std,rep,ipd_case.reputations,ipd_case.rep_counts
 
 def norm_r(r,min_r,max_r):
-    return (r-min_r)/(max_r-min_r)
+    return np.clip((r - min_r) / (max_r - min_r), 0.0, 1.0)
 
 def plot_r(rep,filename,cum=True,legend=True):
     alpha1 = 1
