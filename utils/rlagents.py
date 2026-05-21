@@ -71,7 +71,7 @@ class MDP():
     MDP game setting
     """
 
-    def __init__(self, algorithm, reward_functions, nTrials, T, nAct_B=20, nAct_C=20, GAMMA=0.95, Q1=None, Q2=None, Q1s=None, Q2s=None, Traj=None):
+    def __init__(self, algorithm, reward_functions, nTrials, T, nAct_B=20, nAct_C=20, GAMMA=0.95, Q1=None, Q2=None, Q1s=None, Q2s=None, Traj=None, enable_reputation=False):
 
         # number of experiments to run, large number means longer execution time
         self.nTrials = nTrials
@@ -122,6 +122,9 @@ class MDP():
         # init Q values
         self.Q1, self.Q2 = {}, {}
         self.Q1s, self.Q2s = [], []
+
+        # enable reputation for IPD runs
+        self.enable_reputation = enable_reputation
 
     def pauseLearn(self, toSet=True):
         self.pauseLearning = toSet
@@ -1159,9 +1162,9 @@ class IPD(MDP):
     IPD game setting
     """
 
-    def __init__(self, algorithms, reward_functions, nTrials, T, nMemory, Q1=None, Q2=None, Q1s=None, Q2s=None, Traj=None, reputations=None, rep_counts=None, clear_feats=False):
+    def __init__(self, algorithms, reward_functions, nTrials, T, nMemory, Q1=None, Q2=None, Q1s=None, Q2s=None, Traj=None, reputations=None, rep_counts=None, clear_feats=False, enable_reputation=False):
         MDP.__init__(self, None, reward_functions, nTrials, T,
-                     Q1=Q1, Q2=Q2, Q1s=Q1s, Q2s=Q2s, Traj=Traj)
+                 Q1=Q1, Q2=Q2, Q1s=Q1s, Q2s=Q2s, Traj=Traj)
 
         self.nArms = 2
         self.initialState = self.STATE_E
@@ -1172,9 +1175,19 @@ class IPD(MDP):
         self.fQprimes = []
         self.clear_feats = clear_feats
 
-        # Store initial reputation state for resetting between trials
-        self.init_reputations = np.array(reputations).copy() if reputations is not None else np.zeros(self.nP)
-        self.init_rep_counts = np.array(rep_counts, dtype=int).copy() if rep_counts is not None else np.zeros(self.nP, dtype=int)
+        # reputation system
+        self.enable_reputation = bool(enable_reputation)
+        if self.enable_reputation and reputations is not None:
+            # copy the initial reputations to avoid modifying the input list
+            self.init_reputations = np.array(reputations).copy()
+        else:
+            self.init_reputations = np.zeros(self.nP)
+        
+        if self.enable_reputation and rep_counts is not None:
+            # copy the initial rep counts to avoid modifying the input list
+            self.init_rep_counts = np.array(rep_counts, dtype=int).copy()
+        else:
+            self.init_rep_counts = np.zeros(self.nP, dtype=int)
 
         # In IPD, the context can be the history of length nMemory
         self.feats = np.zeros((self.nP, nMemory + 1))  # last slot = opponent ρ
@@ -1284,11 +1297,16 @@ class IPD(MDP):
             if self.nP == 2:
                 opponent = 1 - p
             else:
-                # mean rep
                 opponent_ids = [i for i in range(self.nP) if i != p]
-                self.feats[p, -1] = np.mean(self.reputations[opponent_ids])
+                if self.enable_reputation:
+                    self.feats[p, -1] = np.mean(self.reputations[opponent_ids])
+                else:
+                    self.feats[p, -1] = 0.0
                 continue
-            self.feats[p, -1] = self.reputations[opponent]
+            if self.enable_reputation:
+                self.feats[p, -1] = self.reputations[opponent]
+            else:
+                self.feats[p, -1] = 0.0
 
     def action2code(self, a):
         if a == self.ACTION_A:
@@ -1468,11 +1486,12 @@ class IPD(MDP):
                     alpha.append(alpha_t)
 
                 # update rep
-                for p in range(self.nP):
-                    self.rep_counts[p] += 1
-                    coop = 1 if a[p] == self.ACTION_A else 0
-                    n = self.rep_counts[p]
-                    self.reputations[p] = ((n - 1) * self.reputations[p] + coop) / n
+                if self.enable_reputation:
+                    for p in range(self.nP):
+                        self.rep_counts[p] += 1
+                        coop = 1 if a[p] == self.ACTION_A else 0
+                        n = self.rep_counts[p]
+                        self.reputations[p] = ((n - 1) * self.reputations[p] + coop) / n
                     
                 # move to the next state and get the reward
                 fullr, nxt_s = self.move(s, a, N, i)

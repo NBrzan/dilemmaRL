@@ -15,18 +15,23 @@ matplotlib.use('Agg')
 
 USE_PARALLEL = False
 GLOBAL_REP_REGISTRY = {}
-RESET_REPUTATION_FOR_IPD_RUNS = False
+RESET_REPUTATION_FOR_IPD_RUNS = True
+ENABLE_REPUTATION = True
 
 def run_ipd_sequential(ipd_scenario, alg_list, nMemory, prefix):
     results = []
     for algs in tqdm(alg_list):
-        reputations = np.zeros(len(algs))
-        rep_counts = np.zeros(len(algs), dtype=int)
-        
-        for i, alg in enumerate(algs):
-            if alg in GLOBAL_REP_REGISTRY:
-                reputations[i] = GLOBAL_REP_REGISTRY[alg][0]
-                rep_counts[i] = GLOBAL_REP_REGISTRY[alg][1]
+        if ENABLE_REPUTATION:
+            reputations = np.zeros(len(algs))
+            rep_counts = np.zeros(len(algs), dtype=int)
+            
+            for i, alg in enumerate(algs):
+                if alg in GLOBAL_REP_REGISTRY:
+                    reputations[i] = GLOBAL_REP_REGISTRY[alg][0]
+                    rep_counts[i] = GLOBAL_REP_REGISTRY[alg][1]
+        else:
+            reputations = None
+            rep_counts = None
         
         res = run_ipd(ipd_scenario, algs, nMemory=nMemory, prefix=prefix, 
                       reputations=reputations, rep_counts=rep_counts)
@@ -34,15 +39,16 @@ def run_ipd_sequential(ipd_scenario, alg_list, nMemory, prefix):
         *core_res, updated_reps, updated_counts = res
         results.append(core_res)
         
-        # Update
-        for i, alg in enumerate(algs):
-            GLOBAL_REP_REGISTRY[alg] = [updated_reps[i], updated_counts[i]]
+        # Update registry
+        if ENABLE_REPUTATION:
+            for i, alg in enumerate(algs):
+                GLOBAL_REP_REGISTRY[alg] = [updated_reps[i], updated_counts[i]]
             
     return results
 
 
 def run_ipd_parallel(ipd_scenario, alg_list, nMemory, prefix):
-    full_results = Parallel(n_jobs=-1)(delayed(run_ipd)(ipd_scenario, algs, nMemory=nMemory, prefix=prefix) for algs in tqdm(alg_list))
+    full_results = Parallel(n_jobs=-1)(delayed(run_ipd)(ipd_scenario, algs, nMemory=nMemory, prefix=prefix, reputations=None, rep_counts=None, enable_reputation=ENABLE_REPUTATION) for algs in tqdm(alg_list))
     return [res[:9] for res in full_results]
 
 
@@ -91,7 +97,7 @@ def save_results_to_csv(tab, alg_list, path):
     print(f'Saved results to {path}')
 
 def run_ipd_all(ipd_scenario, alg_list, nMemory, prefix):
-    if RESET_REPUTATION_FOR_IPD_RUNS:
+    if RESET_REPUTATION_FOR_IPD_RUNS and ENABLE_REPUTATION:
         GLOBAL_REP_REGISTRY.clear()
 
     if USE_PARALLEL:

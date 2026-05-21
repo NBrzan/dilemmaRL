@@ -9,11 +9,11 @@ import seaborn as sns
 # import pickle
 
 
-def run_ipd(ipd_scenario, algs, nMemory=5, nTrials=100, T=50, prefix="", reputations=None, rep_counts=None):
+def run_ipd(ipd_scenario, algs, nMemory=5, nTrials=100, T=50, prefix="", reputations=None, rep_counts=None, enable_reputation=False):
     _, reward_from_A, reward_from_B, reward_from_C, reward_from_D = load_IPD(
         ipd_scenario, prefix=prefix)
     reward_functions = (reward_from_A,reward_from_B,reward_from_C,reward_from_D)
-    ipd_case = IPD(algs,reward_functions,nTrials,T,nMemory=nMemory,reputations=reputations,rep_counts=rep_counts)
+    ipd_case = IPD(algs,reward_functions,nTrials,T,nMemory=nMemory,reputations=reputations,rep_counts=rep_counts,enable_reputation=enable_reputation, clear_feats=False)
     rep = ipd_case.run()
     rep['algs'] = algs
     rep['nTrials'] = nTrials
