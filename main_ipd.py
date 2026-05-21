@@ -97,14 +97,30 @@ def save_results_to_csv(tab, alg_list, path):
     pd.DataFrame(rows).to_csv(path, index=False)
     print(f'Saved results to {path}')
 
+def save_reputation_registry(path):
+
+    rows = []
+    for alg in sorted(GLOBAL_REP_REGISTRY.keys()):
+        val = GLOBAL_REP_REGISTRY[alg]
+        rows.append({'algorithm': alg, 'reputation': val[0], 'count': val[1]})
+    
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    pd.DataFrame(rows).to_csv(path, index=False)
+    print(f'Saved reputation registry to {path}')
+
 def run_ipd_all(ipd_scenario, alg_list, nMemory, prefix):
     if RESET_REPUTATION_FOR_IPD_RUNS and ENABLE_REPUTATION:
         GLOBAL_REP_REGISTRY.clear()
 
     if USE_PARALLEL:
-        return run_ipd_parallel(ipd_scenario, alg_list, nMemory, prefix)
+        results = run_ipd_parallel(ipd_scenario, alg_list, nMemory, prefix)
     else:
-        return run_ipd_sequential(ipd_scenario, alg_list, nMemory, prefix)
+        results = run_ipd_sequential(ipd_scenario, alg_list, nMemory, prefix)
+    
+    if ENABLE_REPUTATION:
+        save_reputation_registry(f'./models/{prefix}_reputations.csv')
+        
+    return results
 
 
 def run_bclone_single_alg(alg1, train_set, test_set, ipd_scenario, fd, nTrials, T, nMemory):
