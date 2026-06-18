@@ -45,12 +45,6 @@ Install requirements
 pip install -r requirements.txt
 ```
 
-Set up folder for graphs
-
-```bash
-mkdir -p ./figures/ipd1_m5
-```
-
 Run the app
 
 ```bash
@@ -85,7 +79,7 @@ If you find this work helpful, please try the models out and cite our works. Tha
 ## Requirements
 
 * python
-* numpy and scikit-learn
+* python packages in requirements.txt
 
 ## Mental variants
 

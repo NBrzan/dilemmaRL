@@ -6,12 +6,14 @@ import matplotlib.pyplot as plt
 import math
 import pandas as pd
 import seaborn as sns
-import pickle
+# import pickle
 
-def run_ipd(ipd_scenario,algs,nMemory=5,nTrials=100,T=50,prefix=""):
-    _,reward_from_A,reward_from_B,reward_from_C,reward_from_D = load_IPD(ipd_scenario,prefix=prefix)
+
+def run_ipd(ipd_scenario, algs, nMemory=5, nTrials=100, T=50, prefix="", reputations=None, rep_counts=None, enable_reputation=False):
+    _, reward_from_A, reward_from_B, reward_from_C, reward_from_D = load_IPD(
+        ipd_scenario, prefix=prefix)
     reward_functions = (reward_from_A,reward_from_B,reward_from_C,reward_from_D)
-    ipd_case = IPD(algs,reward_functions,nTrials,T,nMemory=nMemory)
+    ipd_case = IPD(algs,reward_functions,nTrials,T,nMemory=nMemory,reputations=reputations,rep_counts=rep_counts,enable_reputation=enable_reputation, clear_feats=False)
     rep = ipd_case.run()
     rep['algs'] = algs
     rep['nTrials'] = nTrials
@@ -39,20 +41,60 @@ def run_ipd(ipd_scenario,algs,nMemory=5,nTrials=100,T=50,prefix=""):
     r_dff = rs - r_sum/len(algs)
     rs_dff = np.mean(r_dff,1)
     rd_std = np.std(r_dff,1)/np.sqrt(nTrials)
-    model_path = './models/'+prefix+'/IPD_'+str(ipd_scenario)+'_m_'+str(nMemory)+'_p_'+ '_'.join(algs)+'.pkl'
+
+    # function that computes cooperation ratio and convergence round for each algorithm in the IPD experiment
+    def _compute_cooperation_and_convergence(rep, epsilon=0.01):
+        n_agents = len(rep['algs'])
+        T = rep['T']
+
+        # calculate window size based on epsilon
+        if epsilon > 0:
+            window = int(np.ceil(1.0 / epsilon))
+        else:
+            window = 1
+        if window > T:
+            window = T
+
+        cooperation_ratios = []
+        convergence_rounds = []
+
+        for i in range(n_agents):
+            # get cooperation percentage for agent in all rounds and compute average cooperation ratio
+            percentage = np.mean(rep['percent' + str(i)], axis=0) / 100.0
+            coop = float(np.mean(percentage))
+            cooperation_ratios.append(coop)
+
+            # find the earliest round where cooperation percetage converges
+            conv = None
+            for t in range(0, max(1, T - window + 1)):
+                if np.all(np.abs(percentage[t:t + window] - coop) <= epsilon):
+                    conv = t + 1
+                    break
+            
+            # if convergence round is not found, set it to T
+            if conv is None:
+                conv = T
+            convergence_rounds.append(int(conv))
+
+        return cooperation_ratios, convergence_rounds
+
+    coop_ratios, conv_rounds = _compute_cooperation_and_convergence(rep)
+    rep['coop_ratios'] = coop_ratios
+    rep['convergence_rounds'] = conv_rounds
+    model_path = './models/'+prefix+'/IPD_'+str(ipd_scenario)+'_m_'+str(nMemory)+'_p_'+ '_'.join(algs)+'.csv'
     os.makedirs(os.path.dirname(model_path), exist_ok=True)
-    with open(model_path, 'wb') as handle:
-        pickle.dump(rep, handle, protocol=pickle.HIGHEST_PROTOCOL)
-    return r,r_std,p,p_std,rs_sum,rs_std,rs_dff,rd_std,rep
+    #     with open(model_path, 'wb') as handle:
+    #         pickle.dump(rep, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    return r,r_std,p,p_std,rs_sum,rs_std,rs_dff,rd_std,rep,ipd_case.reputations,ipd_case.rep_counts
 
 def norm_r(r,min_r,max_r):
-    return (r-min_r)/(max_r-min_r)
+    return np.clip((r - min_r) / (max_r - min_r), 0.0, 1.0)
 
 def plot_r(rep,filename,cum=True,legend=True):
     alpha1 = 1
     alpha2 = 0.2
     LINE_WIDTH = 2
-    plt.rcParams['figure.figsize'] = [15,15]
+    plt.rcParams['figure.figsize'] = [20,20]
     fig = plt.figure()
     ax1 = fig.add_subplot()
     colors = {'UCB':'orangered','TS':'brown','eGreedy':'lightcoral','EXP3':'sandybrown','HBTS':'chocolate','LinUCB':'dodgerblue','CTS':'steelblue','EXP4':'darkcyan','SCTS':'cyan','QL':'purple','DQL':'violet','SARSA':'deeppink','SQL':'mediumpurple','Coop':'gold','Dfct':'greenyellow','Tit4Tat':'yellowgreen','PTS':'tab:blue','NTS':'tab:red','bAD':'tab:orange','bADD':'tab:purple','bADHD':'tab:brown','bbvFTD':'tab:pink','bCP':'tab:olive','bM':'tab:grey','bPD':'tab:cyan','PCTS':'tab:blue','NCTS':'tab:red','cAD':'tab:orange','cADD':'tab:purple','cADHD':'tab:brown','cbvFTD':'tab:pink','cCP':'tab:olive','cM':'tab:grey','cPD':'tab:cyan','PQL':'tab:blue','NQL':'tab:red','AD':'tab:orange','ADD':'tab:purple','ADHD':'tab:brown','bvFTD':'tab:pink','CP':'tab:olive','M':'tab:grey','PD':'tab:cyan','Human':'black'}
@@ -73,17 +115,17 @@ def plot_r(rep,filename,cum=True,legend=True):
         for idx in np.arange(len(avg_mean)):
             m=idx
             ax1.fill_between(np.arange(len(avg_mean[m])), avg_mean[m] - avg_std[m]/np.sqrt(nT), avg_mean[m] + avg_std[m]/np.sqrt(nT), alpha=alpha2,color=colors[name[m]])
-    ax1.set_xlabel('round')
+    ax1.set_xlabel('Krog')
     if legend:
         ax1.legend()
     if cum:
-        ax1.set_ylabel('cum normalized reward')
-        ax1.title.set_text('cumulative reward: '+' vs. '.join(name))
-        ax1.set_ylim([0,T])
+        ax1.set_ylabel('Kumulativna normalizirana nagrada')
+        ax1.title.set_text('Kumulativna nagrada: '+' proti '.join(name))
+        ax1.set_ylim([0,T*1.1])
     else:
-        ax1.set_ylabel('normalized reward')
-        ax1.title.set_text('reward feedback: '+' vs. '.join(name))
-        ax1.set_ylim([0,1])
+        ax1.set_ylabel('Normalizirana nagrada')
+        ax1.title.set_text('Povratna informacija o nagradi: '+' proti '.join(name))
+        ax1.set_ylim([0,1.5])
     ax1.set_xlim([0,T])
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     fig.savefig(filename, bbox_inches='tight')
@@ -94,7 +136,7 @@ def plot_p(rep,filename,legend=True):
     alpha1 = 1
     alpha2 = 0.2
     LINE_WIDTH = 2
-    plt.rcParams['figure.figsize'] = [15,15]
+    plt.rcParams['figure.figsize'] = [20,20]
     fig = plt.figure()
     ax1 = fig.add_subplot()
     colors = {'UCB':'orangered','TS':'brown','eGreedy':'lightcoral','EXP3':'sandybrown','HBTS':'chocolate','LinUCB':'dodgerblue','CTS':'steelblue','EXP4':'darkcyan','SCTS':'cyan','QL':'purple','DQL':'violet','SARSA':'deeppink','SQL':'mediumpurple','Coop':'gold','Dfct':'greenyellow','Tit4Tat':'yellowgreen','PTS':'tab:blue','NTS':'tab:red','bAD':'tab:orange','bADD':'tab:purple','bADHD':'tab:brown','bbvFTD':'tab:pink','bCP':'tab:olive','bM':'tab:grey','bPD':'tab:cyan','PCTS':'tab:blue','NCTS':'tab:red','cAD':'tab:orange','cADD':'tab:purple','cADHD':'tab:brown','cbvFTD':'tab:pink','cCP':'tab:olive','cM':'tab:grey','cPD':'tab:cyan','PQL':'tab:blue','NQL':'tab:red','AD':'tab:orange','ADD':'tab:purple','ADHD':'tab:brown','bvFTD':'tab:pink','CP':'tab:olive','M':'tab:grey','PD':'tab:cyan','Human':'black'}
@@ -113,13 +155,13 @@ def plot_p(rep,filename,legend=True):
         for idx in np.arange(len(avg_mean)):
             m=idx
             ax1.fill_between(np.arange(len(avg_mean[m])), avg_mean[m] - avg_std[m]/np.sqrt(nT), avg_mean[m] + avg_std[m]/np.sqrt(nT), alpha=alpha2,color=colors[name[m]])
-    ax1.set_xlabel('round')
-    ax1.set_ylabel('percentage of cooperation')
+    ax1.set_xlabel('Krog')
+    ax1.set_ylabel('Razmerje sodelovanja')
     if legend:
         ax1.legend()
-    ax1.title.set_text('cooperation ratio: '+' vs. '.join(name))
-    ax1.set_xlim([0,T])
-    ax1.set_ylim([0,100])
+    ax1.title.set_text('Razmerje sodelovanja: '+' proti '.join(name))
+    ax1.set_xlim([0,T*1.1])
+    ax1.set_ylim([0,110])
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     fig.savefig(filename, bbox_inches='tight')
     plt.close(fig)
@@ -132,7 +174,7 @@ def getWinner(scores, names):
 
 # plot graphs of different RL algorithms
 def plotAgents(reports,names,nTrials,reward_functions,labels,fig_name,is_flipped=False,isIGT=False,plotShortTerm=False,shortTerm=100):
-    plt.rcParams['figure.figsize'] = [20, 10]
+    plt.rcParams['figure.figsize'] = [20, 20]
     lw = 2
     tmp = reports[0]['percent']
     steps = np.arange(tmp.shape[1])+1 
@@ -209,8 +251,8 @@ def plotAgents(reports,names,nTrials,reward_functions,labels,fig_name,is_flipped
         axlist[0][0].axvline(x=np.mean(data['B']), color='orange', linestyle='--')
         axlist[0][0].axvline(x=np.mean(data['C']), color='green', linestyle='--')
         axlist[0][0].axvline(x=np.mean(data['D']), color='red', linestyle='--')
-        axlist[0][0].set_xlabel('reward')
-        axlist[0][0].set_ylabel('Reward distributions for four actions')
+        axlist[0][0].set_xlabel('Nagrada')
+        axlist[0][0].set_ylabel('Porazdelitev nagrad za štiri dejanja')
         axlist[0][0].legend(loc='upper center', bbox_to_anchor=(0.1, 0.8), ncol=1)
         axlist[0][0].grid(True)
 
@@ -225,19 +267,19 @@ def plotAgents(reports,names,nTrials,reward_functions,labels,fig_name,is_flipped
                 l = axlist[0][2].fill_between(steps[-last:], np.mean(y[i],0)[-last:]-np.std(y[i],0)[-last:]/math.sqrt(nTrials),np.mean(y[i],0)[-last:]+np.std(y[i],0)[-last:]/math.sqrt(nTrials),alpha=alpha_plot,color=colors[i])
                 l = axlist[0][3].fill_between(steps[:shortTerm], np.mean(r[i],0)[:shortTerm]-np.std(r[i],0)[:shortTerm]/math.sqrt(nTrials),np.mean(r[i],0)[:shortTerm]+np.std(r[i],0)[:shortTerm]/math.sqrt(nTrials),alpha=alpha_plot,color=colors[i])
                 l = axlist[0][4].fill_between(steps[-last:], np.mean(r[i],0)[-last:]-np.std(r[i],0)[-last:]/math.sqrt(nTrials),np.mean(r[i],0)[-last:]+np.std(r[i],0)[-last:]/math.sqrt(nTrials),alpha=alpha_plot,color=colors[i])
-            axlist[0][1].set_xlabel('Episodes')
-            axlist[0][1].set_ylabel('% choosing better decks (short-term)')
-            axlist[0][1].set_ylim(0,100)
+            axlist[0][1].set_xlabel('Epizode')
+            axlist[0][1].set_ylabel('% izbira boljših kupov (kratkoročno)')
+            axlist[0][1].set_ylim(0,110)
             axlist[0][1].grid(True)
 #             axlist[0][2].set_xlabel('Episodes')
 #             axlist[0][2].get_yaxis().set_visible(False)
 #             axlist[0][2].yaxis('off')
 #             axlist[0][2].yaxis.tick_right()
-            axlist[0][2].set_ylabel('% choosing better decks (long-term)')
-            axlist[0][2].set_ylim(0,100)
+            axlist[0][2].set_ylabel('% izbira boljših kupov (dolgoročno)')
+            axlist[0][2].set_ylim(0,110)
             axlist[0][2].grid(True)
-            axlist[0][3].set_xlabel('Episodes')
-            axlist[0][3].set_ylabel('Cumulative episode rewards')
+            axlist[0][3].set_xlabel('Epizode')
+            axlist[0][3].set_ylabel('Kumulativna nagrada v epizodi')
             axlist[0][3].legend()
             axlist[0][3].grid(True)
         else:
@@ -246,12 +288,12 @@ def plotAgents(reports,names,nTrials,reward_functions,labels,fig_name,is_flipped
                 l, = axlist[0][2].plot(steps, np.mean(r[i],0) , marker='', color=colors[i], linewidth=lw, label=names[i])
                 l = axlist[0][1].fill_between(steps, np.mean(y[i],0)-np.std(y[i],0)/math.sqrt(nTrials),np.mean(y[i],0)+np.std(y[i],0)/math.sqrt(nTrials),alpha=alpha_plot,color=colors[i])
                 l = axlist[0][2].fill_between(steps, np.mean(r[i],0)-np.std(r[i],0)/math.sqrt(nTrials),np.mean(r[i],0)+np.std(r[i],0)/math.sqrt(nTrials),alpha=alpha_plot,color=colors[i])
-            axlist[0][1].set_xlabel('Episodes')
-            axlist[0][1].set_ylabel('% choosing better decks')
-            axlist[0][1].set_ylim(0,100)
+            axlist[0][1].set_xlabel('Epizode')
+            axlist[0][1].set_ylabel('% izbira boljših kupov')
+            axlist[0][1].set_ylim(0,110)
             axlist[0][1].grid(True)
-            axlist[0][2].set_xlabel('Episodes')
-            axlist[0][2].set_ylabel('Cumulative episode rewards')
+            axlist[0][2].set_xlabel('Epizode')
+            axlist[0][2].set_ylabel('Kumulativna nagrada v epizodi')
             axlist[0][2].grid(True)
 
         for i, _ in enumerate(y):
@@ -272,29 +314,29 @@ def plotAgents(reports,names,nTrials,reward_functions,labels,fig_name,is_flipped
             l = axlist[2][2].fill_between(steps, np.mean(c2[i],0)-np.std(c2[i],0)/math.sqrt(nTrials),np.mean(c2[i],0)+np.std(c2[i],0)/math.sqrt(nTrials),alpha=alpha_plot,color=colors[i])
             l = axlist[2][3].fill_between(steps, np.mean(d2[i],0)-np.std(d2[i],0)/math.sqrt(nTrials),np.mean(d2[i],0)+np.std(d2[i],0)/math.sqrt(nTrials),alpha=alpha_plot,color=colors[i])
 
-        axlist[1][0].set_xlabel('Episodes')
-        axlist[1][0].set_ylabel('Q1 for picking A')
+        axlist[1][0].set_xlabel('Epizode')
+        axlist[1][0].set_ylabel('Q1 za izbiro A')
         axlist[1][0].grid(True)
-        axlist[1][1].set_xlabel('Episodes')
-        axlist[1][1].set_ylabel('Q1 for picking B')
+        axlist[1][1].set_xlabel('Epizode')
+        axlist[1][1].set_ylabel('Q1 za izbiro B')
         axlist[1][1].grid(True)
-        axlist[1][2].set_xlabel('Episodes')
-        axlist[1][2].set_ylabel('Q1 for picking C')
+        axlist[1][2].set_xlabel('Epizode')
+        axlist[1][2].set_ylabel('Q1 za izbiro C')
         axlist[1][2].grid(True)
-        axlist[1][3].set_xlabel('Episodes')
-        axlist[1][3].set_ylabel('Q1 for picking D')
+        axlist[1][3].set_xlabel('Epizode')
+        axlist[1][3].set_ylabel('Q1 za izbiro D')
         axlist[1][3].grid(True)
-        axlist[2][0].set_xlabel('Episodes')
-        axlist[2][0].set_ylabel('Q2 for picking A')
+        axlist[2][0].set_xlabel('Epizode')
+        axlist[2][0].set_ylabel('Q2 za izbiro A')
         axlist[2][0].grid(True)
-        axlist[2][1].set_xlabel('Episodes')
-        axlist[2][1].set_ylabel('Q2 for picking B')
+        axlist[2][1].set_xlabel('Epizode')
+        axlist[2][1].set_ylabel('Q2 za izbiro B')
         axlist[2][1].grid(True)
-        axlist[2][2].set_xlabel('Episodes')
-        axlist[2][2].set_ylabel('Q2 for picking C')
+        axlist[2][2].set_xlabel('Epizode')
+        axlist[2][2].set_ylabel('Q2 za izbiro C')
         axlist[2][2].grid(True)
-        axlist[2][3].set_xlabel('Episodes')
-        axlist[2][3].set_ylabel('Q2 for picking D')
+        axlist[2][3].set_xlabel('Epizode')
+        axlist[2][3].set_ylabel('Q2 za izbiro D')
         axlist[2][3].legend()
         axlist[2][3].grid(True) 
         
@@ -332,8 +374,8 @@ def plotAgents(reports,names,nTrials,reward_functions,labels,fig_name,is_flipped
         sns.kdeplot(data[label_C],shade=True,ax=axlist[0][0])
         axlist[0][0].axvline(x=np.mean(data[label_B]), color='blue', linestyle='--')
         axlist[0][0].axvline(x=np.mean(data[label_C]), color='orange', linestyle='--')
-        axlist[0][0].set_xlabel('reward')
-        axlist[0][0].set_ylabel('Reward distributions for action left vs. right')
+        axlist[0][0].set_xlabel('Nagrada')
+        axlist[0][0].set_ylabel('Porazdelitev nagrad za dejanje levo proti desno')
     
         for i, _ in enumerate(y):
             l, = axlist[0][1].plot(steps, np.mean(y[i],0) , marker='', color=colors[i], linewidth=lw, label=names[i])
@@ -348,25 +390,25 @@ def plotAgents(reports,names,nTrials,reward_functions,labels,fig_name,is_flipped
             l  = axlist[1][2].fill_between(steps, np.mean(l2[i],0)-np.std(l2[i],0)/math.sqrt(nTrials),np.mean(l2[i],0)+np.std(l2[i],0)/math.sqrt(nTrials),alpha=alpha_plot, color=colors[i])
             l, = axlist[1][3].plot(steps, np.mean(r2[i],0) , marker='', color=colors[i], linewidth=lw, label=names[i])
             l  = axlist[1][3].fill_between(steps, np.mean(r2[i],0)-np.std(r2[i],0)/math.sqrt(nTrials),np.mean(r2[i],0)+np.std(r2[i],0)/math.sqrt(nTrials),alpha=alpha_plot, color=colors[i])
-        axlist[0][1].set_xlabel('Episodes')
-        axlist[0][1].set_ylabel('% choosing better action')
-        axlist[0][1].set_ylim(0,100)
+        axlist[0][1].set_xlabel('Epizode')
+        axlist[0][1].set_ylabel('% izbira boljših dejanj')
+        axlist[0][1].set_ylim(0,110)
         axlist[0][1].grid(True)
-        axlist[0][2].set_xlabel('Episodes')
-        axlist[0][2].set_ylabel('Cumulative episode rewards')
+        axlist[0][2].set_xlabel('Epizode')
+        axlist[0][2].set_ylabel('Kumulativna nagrada v epizodi')
         axlist[0][2].grid(True)
-        axlist[1][0].set_xlabel('Episodes')
-        axlist[1][0].set_ylabel('Q1 for action left at state A')
+        axlist[1][0].set_xlabel('Epizode')
+        axlist[1][0].set_ylabel('Q1 za dejanje levo pri stanju A')
         axlist[1][0].grid(True)
-        axlist[1][1].set_xlabel('Episodes')
-        axlist[1][1].set_ylabel('Q1 for action right at state A')
+        axlist[1][1].set_xlabel('Epizode')
+        axlist[1][1].set_ylabel('Q1 za dejanje desno pri stanju A')
 #         axlist[1][1].legend()
         axlist[1][1].grid(True)
-        axlist[1][2].set_xlabel('Episodes')
-        axlist[1][2].set_ylabel('Q2 for action left at state A')
+        axlist[1][2].set_xlabel('Epizode')
+        axlist[1][2].set_ylabel('Q2 za dejanje levo pri stanju A')
         axlist[1][2].grid(True)
-        axlist[1][3].set_xlabel('Episodes')
-        axlist[1][3].set_ylabel('Q2 for action right at state A')
+        axlist[1][3].set_xlabel('Epizode')
+        axlist[1][3].set_ylabel('Q2 za dejanje desno pri stanju A')
         axlist[1][3].legend()
         axlist[1][3].grid(True)
     
