@@ -13,7 +13,7 @@ import matplotlib
 matplotlib.use('Agg')
 
 
-USE_PARALLEL = False
+USE_PARALLEL = True
 GLOBAL_REP_REGISTRY = {}
 RESET_REPUTATION_FOR_IPD_RUNS = True
 ENABLE_REPUTATION = True
@@ -49,7 +49,7 @@ def run_ipd_sequential(ipd_scenario, alg_list, nMemory, prefix):
 
 
 def run_ipd_parallel(ipd_scenario, alg_list, nMemory, prefix):
-    full_results = Parallel(n_jobs=-1)(delayed(run_ipd)(ipd_scenario, algs, nMemory=nMemory, prefix=prefix, reputations=None, rep_counts=None, enable_reputation=ENABLE_REPUTATION) for algs in tqdm(alg_list))
+    full_results = Parallel(n_jobs=-3)(delayed(run_ipd)(ipd_scenario, algs, nMemory=nMemory, prefix=prefix, reputations=None, rep_counts=None, enable_reputation=ENABLE_REPUTATION) for algs in tqdm(alg_list))
     return [res[:9] for res in full_results]
 
 
@@ -243,7 +243,7 @@ def run_bclone_single_alg(alg1, train_set, test_set, ipd_scenario, fd, nTrials, 
 SMALL_SIZE = 40
 MEDIUM_SIZE = 50
 BIGGER_SIZE = 60
-IPD_SCENARIO = 1 # 1 = iterative 
+IPD_SCENARIO = 2 # 1 = iterative 
 
 plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
 plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
@@ -271,7 +271,7 @@ mRL_algs = ['SQL', 'AD', 'ADD', 'ADHD', 'bvFTD', 'CP', 'M', 'PD']
 fd = 'ipd1_m5'
 nMemory = 5
 print(f"\n Starting 2-agent tournament (nMemory={nMemory}, prefix={fd}) ")
-T = 50
+T = 160
 ALGS = all_algs
 tab_r = np.zeros((len(ALGS), len(ALGS), T))
 tab_r_std = np.zeros((len(ALGS), len(ALGS), T))
@@ -322,7 +322,7 @@ save_results_to_csv(tab, ALGS, path)
 fd = 'ipd1_m5_3ag'
 nMemory = 5
 print(f"\n Starting 3-agent tournament (nMemory={nMemory}, prefix={fd}) ")
-T = 50
+T = 160
 ALGS1 = MAB_algs
 ALGS2 = CB_algs
 ALGS3 = RL_algs
@@ -395,7 +395,7 @@ save_results_to_csv(tab, ALGSALL, path)
 fd = 'ipd1_m5_mMAB'
 print(f"\n Starting tournament for {fd} ")
 nMemory = 5
-T = 50
+T = 160
 ALGS = mMAB_algs
 tab_r = np.zeros((len(ALGS), len(ALGS), T))
 tab_r_std = np.zeros((len(ALGS), len(ALGS), T))
@@ -447,7 +447,7 @@ save_results_to_csv(tab, ALGS, path)
 fd = 'ipd1_m5_mCB'
 print(f"\n Starting tournament for {fd} ")
 nMemory = 5
-T = 50
+T = 160
 ALGS = mCB_algs
 tab_r = np.zeros((len(ALGS), len(ALGS), T))
 tab_r_std = np.zeros((len(ALGS), len(ALGS), T))
@@ -499,7 +499,7 @@ save_results_to_csv(tab, ALGS, path)
 fd = 'ipd1_m5_mRL'
 print(f"\n Starting tournament for {fd} ")
 nMemory = 5
-T = 50
+T = 160
 ALGS = mRL_algs
 tab_r = np.zeros((len(ALGS), len(ALGS), T))
 tab_r_std = np.zeros((len(ALGS), len(ALGS), T))
@@ -613,7 +613,7 @@ save_results_to_csv(tab, ALGS, path)
 fd = 'ipd1_m1'
 print(f"\n Starting 2-agent tournament (nMemory={nMemory}, prefix={fd}) ")
 nMemory = 1
-T = 50
+T = 160
 ALGS = all_algs
 tab_r = np.zeros((len(ALGS), len(ALGS), T))
 tab_r_std = np.zeros((len(ALGS), len(ALGS), T))
@@ -665,7 +665,7 @@ save_results_to_csv(tab, ALGS, path)
 fd = 'ipd1_m1_3ag'
 print(f"\n Starting 3-agent tournament (nMemory={nMemory}, prefix={fd}) ")
 nMemory = 1
-T = 50
+T = 160
 ALGS1 = MAB_algs
 ALGS2 = CB_algs
 ALGS3 = RL_algs
@@ -738,7 +738,7 @@ save_results_to_csv(tab, ALGSALL, path)
 fd = 'ipd1_m1_mMAB'
 print(f"\n Starting tournament for {fd} ")
 nMemory = 1
-T = 50
+T = 160
 ALGS = mMAB_algs
 tab_r = np.zeros((len(ALGS), len(ALGS), T))
 tab_r_std = np.zeros((len(ALGS), len(ALGS), T))
@@ -790,7 +790,7 @@ save_results_to_csv(tab, ALGS, path)
 fd = 'ipd1_m1_mCB'
 print(f"\n Starting tournament for {fd} ")
 nMemory = 1
-T = 50
+T = 160
 ALGS = mCB_algs
 tab_r = np.zeros((len(ALGS), len(ALGS), T))
 tab_r_std = np.zeros((len(ALGS), len(ALGS), T))
@@ -842,7 +842,7 @@ save_results_to_csv(tab, ALGS, path)
 fd = 'ipd1_m1_mRL'
 print(f"\n Starting tournament for {fd} ")
 nMemory = 1
-T = 50
+T = 160
 ALGS = mRL_algs
 tab_r = np.zeros((len(ALGS), len(ALGS), T))
 tab_r_std = np.zeros((len(ALGS), len(ALGS), T))
