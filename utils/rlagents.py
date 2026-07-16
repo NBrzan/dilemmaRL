@@ -1164,7 +1164,7 @@ class IPD(MDP):
 
     def __init__(self, algorithms, reward_functions, nTrials, T, nMemory, Q1=None, Q2=None, Q1s=None, Q2s=None, Traj=None, reputations=None, rep_counts=None, clear_feats=False, enable_reputation=False):
         MDP.__init__(self, None, reward_functions, nTrials, T,
-                 Q1=Q1, Q2=Q2, Q1s=Q1s, Q2s=Q2s, Traj=Traj)
+                     Q1=Q1, Q2=Q2, Q1s=Q1s, Q2s=Q2s, Traj=Traj)
 
         self.nArms = 2
         self.initialState = self.STATE_E
@@ -1182,7 +1182,7 @@ class IPD(MDP):
             self.init_reputations = np.array(reputations).copy()
         else:
             self.init_reputations = np.zeros(self.nP)
-        
+
         if self.enable_reputation and rep_counts is not None:
             # copy the initial rep counts to avoid modifying the input list
             self.init_rep_counts = np.array(rep_counts, dtype=int).copy()
@@ -1234,16 +1234,16 @@ class IPD(MDP):
         self.fQprimes = []
         self.moves = []
         self.Q1s, self.Q2s = [], []
-        
+
         # reset to initial rep
         self.reputations = self.init_reputations.copy()
         self.rep_counts = self.init_rep_counts.copy()
-        
+
         # optionaly clear feats
         # this is to maintain compatibility with previous experiments
         if self.clear_feats:
             self.feats = np.zeros((self.nP, self.nM + 1))
-        
+
         for p in range(self.nP):
             if self.nP == 2:
                 opponent = 1 - p
@@ -1491,8 +1491,9 @@ class IPD(MDP):
                         self.rep_counts[p] += 1
                         coop = 1 if a[p] == self.ACTION_A else 0
                         n = self.rep_counts[p]
-                        self.reputations[p] = ((n - 1) * self.reputations[p] + coop) / n
-                    
+                        self.reputations[p] = (
+                            (n - 1) * self.reputations[p] + coop) / n
+
                 # move to the next state and get the reward
                 fullr, nxt_s = self.move(s, a, N, i)
                 for j, fr in enumerate(fullr):
@@ -1575,7 +1576,7 @@ class IPD(MDP):
         # run batch of experiments and aggregate every experiment result into the final report
         for k in range(self.nTrials):
             tmp = self.experiment()
-            
+
             total_reputations += self.reputations
             total_counts += self.rep_counts
 

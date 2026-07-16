@@ -18,13 +18,14 @@ GLOBAL_REP_REGISTRY = {}
 RESET_REPUTATION_FOR_IPD_RUNS = True
 ENABLE_REPUTATION = True
 
+
 def run_ipd_sequential(ipd_scenario, alg_list, nMemory, prefix):
     results = []
     for algs in tqdm(alg_list):
         if ENABLE_REPUTATION:
             reputations = np.zeros(len(algs))
             rep_counts = np.zeros(len(algs), dtype=int)
-            
+
             for i, alg in enumerate(algs):
                 if alg in GLOBAL_REP_REGISTRY:
                     reputations[i] = GLOBAL_REP_REGISTRY[alg][0]
@@ -32,56 +33,58 @@ def run_ipd_sequential(ipd_scenario, alg_list, nMemory, prefix):
         else:
             reputations = None
             rep_counts = None
-        
-        res = run_ipd(ipd_scenario, algs, nMemory=nMemory, prefix=prefix, 
+
+        res = run_ipd(ipd_scenario, algs, nMemory=nMemory, prefix=prefix,
                       reputations=reputations, rep_counts=rep_counts,
                       enable_reputation=ENABLE_REPUTATION)
-        
+
         *core_res, updated_reps, updated_counts = res
         results.append(core_res)
-        
+
         # Update registry
         if ENABLE_REPUTATION:
             for i, alg in enumerate(algs):
                 GLOBAL_REP_REGISTRY[alg] = [updated_reps[i], updated_counts[i]]
-            
+
     return results
 
 
 def run_ipd_parallel(ipd_scenario, alg_list, nMemory, prefix):
-    full_results = Parallel(n_jobs=-3)(delayed(run_ipd)(ipd_scenario, algs, nMemory=nMemory, prefix=prefix, reputations=None, rep_counts=None, enable_reputation=ENABLE_REPUTATION) for algs in tqdm(alg_list))
+    full_results = Parallel(n_jobs=-3)(delayed(run_ipd)(ipd_scenario, algs, nMemory=nMemory, prefix=prefix,
+                                                        reputations=None, rep_counts=None, enable_reputation=ENABLE_REPUTATION) for algs in tqdm(alg_list))
     return [res[:9] for res in full_results]
-
 
 
 def save_results_to_csv(tab, alg_list, path):
     rows = []
-    
+
     r_arr = tab['r']
     r_shape = r_arr.shape
     dims = len(r_shape) - 1
     T = r_shape[-1]
-    
-    
+
     for idx in np.ndindex(r_shape[:-1]):
 
         base_data = {
             'coop_ratio': tab['coop'][idx] if 'coop' in tab else 0,
             'conv_round': tab['conv'][idx] if 'conv' in tab else 0,
         }
-        
+
         if dims == 2:
-            if r_shape[0] == len(alg_list): # Tournament
+            if r_shape[0] == len(alg_list):  # Tournament
                 base_data['alg1'] = alg_list[idx[0]]
                 base_data['alg2'] = alg_list[idx[1]]
             else:
-                base_data['sample_id'] = idx[0] # BC
+                base_data['sample_id'] = idx[0]  # BC
                 base_data['alg'] = alg_list[idx[1]]
         elif dims == 3:
-            base_data['alg1'] = alg_list[idx[0]] if idx[0] < len(alg_list) else f'Idx_{idx[0]}'# 3-agent
-            base_data['alg2'] = alg_list[idx[1]] if idx[1] < len(alg_list) else f'Idx_{idx[1]}'
-            base_data['alg3'] = alg_list[idx[2]] if idx[2] < len(alg_list) else f'Idx_{idx[2]}'
-        
+            base_data['alg1'] = alg_list[idx[0]] if idx[0] < len(
+                alg_list) else f'Idx_{idx[0]}'  # 3-agent
+            base_data['alg2'] = alg_list[idx[1]] if idx[1] < len(
+                alg_list) else f'Idx_{idx[1]}'
+            base_data['alg3'] = alg_list[idx[2]] if idx[2] < len(
+                alg_list) else f'Idx_{idx[2]}'
+
         if dims == 3 and base_data['coop_ratio'] == 0 and np.all(r_arr[idx] == 0):
             continue
 
@@ -89,13 +92,16 @@ def save_results_to_csv(tab, alg_list, path):
             row = base_data.copy()
             row['timestep'] = t
             full_idx = idx + (t,)
-            if 'r' in tab: row['reward'] = r_arr[full_idx]
-            if 'p' in tab: row['coop_pct'] = tab['p'][full_idx]
+            if 'r' in tab:
+                row['reward'] = r_arr[full_idx]
+            if 'p' in tab:
+                row['coop_pct'] = tab['p'][full_idx]
             rows.append(row)
-            
+
     os.makedirs(os.path.dirname(path), exist_ok=True)
     pd.DataFrame(rows).to_csv(path, index=False)
     print(f'Saved results to {path}')
+
 
 def save_reputation_registry(path):
 
@@ -103,10 +109,11 @@ def save_reputation_registry(path):
     for alg in sorted(GLOBAL_REP_REGISTRY.keys()):
         val = GLOBAL_REP_REGISTRY[alg]
         rows.append({'algorithm': alg, 'reputation': val[0], 'count': val[1]})
-    
+
     os.makedirs(os.path.dirname(path), exist_ok=True)
     pd.DataFrame(rows).to_csv(path, index=False)
     print(f'Saved reputation registry to {path}')
+
 
 def run_ipd_all(ipd_scenario, alg_list, nMemory, prefix):
     if RESET_REPUTATION_FOR_IPD_RUNS and ENABLE_REPUTATION:
@@ -116,10 +123,10 @@ def run_ipd_all(ipd_scenario, alg_list, nMemory, prefix):
         results = run_ipd_parallel(ipd_scenario, alg_list, nMemory, prefix)
     else:
         results = run_ipd_sequential(ipd_scenario, alg_list, nMemory, prefix)
-    
+
     if ENABLE_REPUTATION:
         save_reputation_registry(f'./models/{prefix}_reputations.csv')
-        
+
     return results
 
 
@@ -145,7 +152,7 @@ def run_bclone_single_alg(alg1, train_set, test_set, ipd_scenario, fd, nTrials, 
         '_p_' + '_'.join(algs) + '.csv'
     os.makedirs(os.path.dirname(path), exist_ok=True)
     # with open(path, 'wb') as handle: (Replaced by CSV)
-        # Results are now saved via save_results_to_csv later
+    # Results are now saved via save_results_to_csv later
 
     test_size = test_set.shape[0]
     alg_results = {
@@ -158,13 +165,15 @@ def run_bclone_single_alg(alg1, train_set, test_set, ipd_scenario, fd, nTrials, 
         'd': np.zeros((test_size, T)),
         'dstd': np.zeros((test_size, T)),
         'pr': np.zeros(test_size),
-        'coop_ratios': np.zeros(test_size), # cooperation ratio metric
-        'convergence_rounds': np.zeros(test_size, dtype=int) # convergence round metric
+        'coop_ratios': np.zeros(test_size),  # cooperation ratio metric
+        # convergence round metric
+        'convergence_rounds': np.zeros(test_size, dtype=int)
     }
 
     # function that computes cooperation ratio and convergence round for each algorithm in the IPD experiment
     def _compute_cooperation_and_convergence(rep_local, agent_id=0, epsilon=0.01):
-        percentage = np.mean(rep_local['percent' + str(agent_id)], axis=0) / 100.0
+        percentage = np.mean(
+            rep_local['percent' + str(agent_id)], axis=0) / 100.0
         coop = float(np.mean(percentage))
         if epsilon > 0:
             window = int(np.ceil(1.0 / epsilon))
@@ -243,7 +252,7 @@ def run_bclone_single_alg(alg1, train_set, test_set, ipd_scenario, fd, nTrials, 
 SMALL_SIZE = 40
 MEDIUM_SIZE = 50
 BIGGER_SIZE = 60
-IPD_SCENARIO = 2 # 1 = iterative 
+IPD_SCENARIO = 2  # 1 = iterative
 
 plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
 plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
@@ -281,8 +290,9 @@ tab_rs_sum = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_std = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
-tab_coop_ratio = np.zeros((len(ALGS), len(ALGS))) # cooperation ratio metric
-tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int) # convergence round metric
+tab_coop_ratio = np.zeros((len(ALGS), len(ALGS)))  # cooperation ratio metric
+# convergence round metric
+tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int)
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
 results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
@@ -338,8 +348,10 @@ tab_rs_sum = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
 tab_rs_std = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
 tab_rs_dff = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
 tab_rd_std = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
-tab_coop_ratio = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL))) # cooperation ratio metric
-tab_conv_round = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL)), dtype=int) # convergence round metric
+# cooperation ratio metric
+tab_coop_ratio = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL)))
+tab_conv_round = np.zeros((len(ALGSALL), len(ALGSALL), len(
+    ALGSALL)), dtype=int)  # convergence round metric
 
 alg_triplets = [[alg1, alg2, alg3]
                 for alg1 in ALGS1 for alg2 in ALGS2 for alg3 in ALGS3]
@@ -405,8 +417,9 @@ tab_rs_sum = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_std = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
-tab_coop_ratio = np.zeros((len(ALGS), len(ALGS))) # cooperation ratio metric
-tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int) # convergence round metric
+tab_coop_ratio = np.zeros((len(ALGS), len(ALGS)))  # cooperation ratio metric
+# convergence round metric
+tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int)
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
 results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
@@ -457,8 +470,9 @@ tab_rs_sum = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_std = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
-tab_coop_ratio = np.zeros((len(ALGS), len(ALGS))) # cooperation ratio metric
-tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int) # convergence round metric
+tab_coop_ratio = np.zeros((len(ALGS), len(ALGS)))  # cooperation ratio metric
+# convergence round metric
+tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int)
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
 results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
@@ -509,8 +523,9 @@ tab_rs_sum = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_std = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
-tab_coop_ratio = np.zeros((len(ALGS), len(ALGS))) # cooperation ratio metric
-tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int) # convergence round metric
+tab_coop_ratio = np.zeros((len(ALGS), len(ALGS)))  # cooperation ratio metric
+# convergence round metric
+tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int)
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
 results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
@@ -563,7 +578,8 @@ train_df = pd.DataFrame(train_set.reshape(train_set.shape[0], -1))
 train_df['split'] = 'train'
 test_df = pd.DataFrame(test_set.reshape(test_set.shape[0], -1))
 test_df['split'] = 'test'
-pd.concat([train_df, test_df]).to_csv('./data/processed_train_test.csv', index=False)
+pd.concat([train_df, test_df]).to_csv(
+    './data/processed_train_test.csv', index=False)
 print('Saved processed data to ./data/processed_train_test.csv')
 
 
@@ -582,8 +598,8 @@ tab_rs_std = np.zeros((test_size, len(ALGS), T))
 tab_rs_dff = np.zeros((test_size, len(ALGS), T))
 tab_rd_std = np.zeros((test_size, len(ALGS), T))
 tab_pr = np.zeros((test_size, len(ALGS)))
-tab_coop_ratio = np.zeros((test_size, len(ALGS))) # cooperation ratio metric
-tab_conv_round = np.zeros((test_size, len(ALGS)), dtype=int) # convergence
+tab_coop_ratio = np.zeros((test_size, len(ALGS)))  # cooperation ratio metric
+tab_conv_round = np.zeros((test_size, len(ALGS)), dtype=int)  # convergence
 
 results_bclone = Parallel(n_jobs=-1)(delayed(run_bclone_single_alg)(alg, train_set,
                                                                     test_set, IPD_SCENARIO, fd, nTrials, T, nMemory) for alg in tqdm(ALGS))
@@ -623,8 +639,9 @@ tab_rs_sum = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_std = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
-tab_coop_ratio = np.zeros((len(ALGS), len(ALGS))) # cooperation ratio metric
-tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int) # convergence round metric
+tab_coop_ratio = np.zeros((len(ALGS), len(ALGS)))  # cooperation ratio metric
+# convergence round metric
+tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int)
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
 results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
@@ -681,8 +698,10 @@ tab_rs_sum = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
 tab_rs_std = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
 tab_rs_dff = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
 tab_rd_std = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL), T))
-tab_coop_ratio = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL))) # cooperation ratio metric
-tab_conv_round = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL)), dtype=int) # convergence round metric
+# cooperation ratio metric
+tab_coop_ratio = np.zeros((len(ALGSALL), len(ALGSALL), len(ALGSALL)))
+tab_conv_round = np.zeros((len(ALGSALL), len(ALGSALL), len(
+    ALGSALL)), dtype=int)  # convergence round metric
 
 alg_triplets = [[alg1, alg2, alg3]
                 for alg1 in ALGS1 for alg2 in ALGS2 for alg3 in ALGS3]
@@ -748,8 +767,9 @@ tab_rs_sum = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_std = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
-tab_coop_ratio = np.zeros((len(ALGS), len(ALGS))) # cooperation ratio metric
-tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int) # convergence round metric
+tab_coop_ratio = np.zeros((len(ALGS), len(ALGS)))  # cooperation ratio metric
+# convergence round metric
+tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int)
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
 results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
@@ -800,8 +820,9 @@ tab_rs_sum = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_std = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
-tab_coop_ratio = np.zeros((len(ALGS), len(ALGS))) # cooperation ratio metric
-tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int) # convergence round metric
+tab_coop_ratio = np.zeros((len(ALGS), len(ALGS)))  # cooperation ratio metric
+# convergence round metric
+tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int)
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
 results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
@@ -852,8 +873,9 @@ tab_rs_sum = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_std = np.zeros((len(ALGS), len(ALGS), T))
 tab_rs_dff = np.zeros((len(ALGS), len(ALGS), T))
 tab_rd_std = np.zeros((len(ALGS), len(ALGS), T))
-tab_coop_ratio = np.zeros((len(ALGS), len(ALGS))) # cooperation ratio metric
-tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int) # convergence round metric
+tab_coop_ratio = np.zeros((len(ALGS), len(ALGS)))  # cooperation ratio metric
+# convergence round metric
+tab_conv_round = np.zeros((len(ALGS), len(ALGS)), dtype=int)
 
 alg_pairs = [[alg1, alg2] for alg1 in ALGS for alg2 in ALGS]
 results = run_ipd_all(IPD_SCENARIO, alg_pairs, nMemory, fd)
@@ -906,7 +928,8 @@ train_df = pd.DataFrame(train_set.reshape(train_set.shape[0], -1))
 train_df['split'] = 'train'
 test_df = pd.DataFrame(test_set.reshape(test_set.shape[0], -1))
 test_df['split'] = 'test'
-pd.concat([train_df, test_df]).to_csv('./data/processed_train_test.csv', index=False)
+pd.concat([train_df, test_df]).to_csv(
+    './data/processed_train_test.csv', index=False)
 print('Saved processed data to ./data/processed_train_test.csv')
 
 
@@ -925,8 +948,8 @@ tab_rs_std = np.zeros((test_size, len(ALGS), T))
 tab_rs_dff = np.zeros((test_size, len(ALGS), T))
 tab_rd_std = np.zeros((test_size, len(ALGS), T))
 tab_pr = np.zeros((test_size, len(ALGS)))
-tab_coop_ratio = np.zeros((test_size, len(ALGS))) # cooperation ratio metric
-tab_conv_round = np.zeros((test_size, len(ALGS)), dtype=int) # convergence
+tab_coop_ratio = np.zeros((test_size, len(ALGS)))  # cooperation ratio metric
+tab_conv_round = np.zeros((test_size, len(ALGS)), dtype=int)  # convergence
 
 results_bclone = Parallel(n_jobs=-1)(delayed(run_bclone_single_alg)(alg, train_set,
                                                                     test_set, IPD_SCENARIO, fd, nTrials, T, nMemory) for alg in tqdm(ALGS))
